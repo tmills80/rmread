@@ -90,46 +90,80 @@ def find_by_surname(
     given: str | None = None,
     limit: int | None = None,
 ) -> list[Person]:
-    """Return all Person records whose primary surname matches ``surname``.
+    """Backwards-compatible substring search by primary surname.
 
-    Matching is case-insensitive (``COLLATE NOCASE``) and substring by
-    default — pass an exact surname or anchor with ``%`` if you need
-    something tighter.
+    If ``surname`` (or ``given``) contains ``%`` or ``_`` it is treated as
+    a SQL LIKE pattern and passed through verbatim. Otherwise the value
+    is wrapped as ``%value%`` for substring matching. For explicit
+    pattern control, use :func:`find_person`.
+    """
+    if not surname or not surname.strip():
+        raise ValueError("surname must be a non-empty string")
+    return find_person(
+        con, surname=surname, given=given, limit=limit,
+    )
+
+
+def find_person(
+    con: sqlite3.Connection,
+    *,
+    surname: str,
+    given: str | None = None,
+    limit: int | None = None,
+) -> list[Person]:
+    """Person search with **explicit** LIKE patterns on surname and given.
+
+    Both ``surname`` and ``given`` are passed verbatim as SQL LIKE
+    patterns. That means:
+
+    - ``find_person(con, surname="PlaceholderSurname")`` matches only the literal
+      string ``PlaceholderSurname`` (case-insensitively).
+    - ``find_person(con, surname="%PlaceholderSurname%")`` matches anything containing
+      ``PlaceholderSurname``.
+    - ``find_person(con, surname="PlaceholderSurname%")`` matches names *starting*
+      with ``PlaceholderSurname``.
+    - ``find_person(con, surname="M_lls")`` matches ``PlaceholderSurname``, ``Mulls``,
+      ``M@lls``, etc. (single-char wildcard).
+    - ``find_person(con, surname="PlaceholderSurname", given="Ann_")`` matches
+      ``PlaceholderSurname`` + ``Anna`` / ``Anne`` / ``Anny`` etc.
+
+    For the legacy substring behaviour (auto-wrap with ``%…%``) see
+    :func:`find_by_surname`.
 
     Parameters
     ----------
     con
-        Open sqlite3 connection (e.g. the one owned by an
-        :class:`rmread.RMDatabase`).
+        Open sqlite3 connection.
     surname
-        Pattern matched against ``NameTable.Surname`` for the primary
-        (``NameType=0``) name row. Required.
+        Required SQL LIKE pattern matched against the primary
+        (``NameType=0``) ``NameTable.Surname`` field.
     given
-        Optional case-insensitive substring filter on ``Given``.
+        Optional SQL LIKE pattern matched against the primary
+        ``Given`` field. ``None`` or empty string disables the filter.
     limit
-        Cap on returned rows. Useful for common surnames (``PlaceholderSurnameTwo``).
+        Cap on returned rows.
     """
-    if not surname or not surname.strip():
+    if surname is None:
+        raise ValueError("surname must be a non-empty string")
+    surname_pat = str(surname).strip()
+    if not surname_pat:
         raise ValueError("surname must be a non-empty string")
 
-    like = surname.strip()
-    if "%" not in like and "_" not in like:
-        like = f"%{like}%"
-
-    sql = _SURNAME_SEARCH_SQL
-    params: tuple = (like,)
+    clauses = ["primaryName.Surname LIKE ? COLLATE NOCASE"]
+    params: list = [surname_pat]
     if given is not None:
-        given = given.strip()
-        if given:
-            sql = sql.replace(
-                "WHERE primaryName.Surname LIKE ? COLLATE NOCASE",
-                "WHERE primaryName.Surname LIKE ? COLLATE NOCASE "
-                "AND primaryName.Given LIKE ? COLLATE NOCASE",
-            )
-            params = params + (f"%{given}%",)
+        given_pat = str(given).strip()
+        if given_pat:
+            clauses.append("primaryName.Given LIKE ? COLLATE NOCASE")
+            params.append(given_pat)
+
+    sql = _SURNAME_SEARCH_SQL.replace(
+        "WHERE primaryName.Surname LIKE ? COLLATE NOCASE",
+        f"WHERE {' AND '.join(clauses)}",
+    )
     if limit is not None:
         sql += "\nLIMIT ?"
-        params = params + (int(limit),)
+        params.append(int(limit))
 
     rows = con.execute(sql, params).fetchall()
 

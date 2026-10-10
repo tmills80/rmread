@@ -96,7 +96,7 @@ test artifact. For smoke tests against a real database:
 
 #+begin_src shell
 source .venv/bin/activate
-rm-find SampleTree.rmtree PlaceholderSurname
+rm-find SampleTree.rmtree AAAAAA
 rm-dump SampleTree.rmtree 1
 #+end_src
 

@@ -16,6 +16,7 @@ from .person import (
     PersonDump,
     dump_person,
     find_by_surname,
+    find_person,
     get_person,
     load_alt_names,
 )
@@ -31,6 +32,7 @@ __all__ = [
     "PersonDump",
     "dump_person",
     "find_by_surname",
+    "find_person",
     "get_person",
     "load_alt_names",
     # events

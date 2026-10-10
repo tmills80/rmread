@@ -2,8 +2,12 @@
 
 Examples::
 
-    rm-find path/to/Tree.rmtree PlaceholderSurname
-    rm-find Tree.rmtree PlaceholderSurname --given PlaceholderGiven
+    rm-find Tree.rmtree PlaceholderSurnameThree            # substring match on surname
+    rm-find Tree.rmtree 'PlaceholderSurnameThree%'         # explicit LIKE pattern (starts-with)
+    rm-find Tree.rmtree '%PlaceholderSurnameThree%'        # contains "PlaceholderSurnameThree"
+    rm-find Tree.rmtree 'B_rown'         # single-char wildcard
+    rm-find Tree.rmtree PlaceholderSurnameThree --given Ann_
+    rm-find Tree.rmtree PlaceholderSurnameThree --exact    # literal match, no wildcards
     rm-find Tree.rmtree PlaceholderSurnameTwo --format json --limit 50
 """
 
@@ -12,7 +16,7 @@ from __future__ import annotations
 import argparse
 import sys
 
-from .. import find_by_surname, open_database
+from .. import find_person, open_database
 from ..format import to_json, to_text
 
 
@@ -31,13 +35,29 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument(
         "surname",
         help=(
-            "Surname pattern. Case-insensitive substring match by default; "
-            "anchor with %% for prefix-only or exact-match."
+            "Surname pattern. SQL LIKE semantics, case-insensitive. "
+            "Use '%%' to match any sequence, '_' to match a single "
+            "character. If the pattern contains no wildcards the search "
+            "is substring by default (equivalent to %%value%%). "
+            "Pass --exact to disable the substring wrap."
         ),
     )
     p.add_argument(
         "--given",
-        help="Optional substring filter on the primary given name.",
+        help=(
+            "Optional LIKE pattern for the primary given name. Same "
+            "wildcard rules as 'surname'. Substring wrap by default; "
+            "pass --exact to disable."
+        ),
+    )
+    p.add_argument(
+        "--exact",
+        action="store_true",
+        help=(
+            "Treat 'surname' and '--given' as literal patterns — do not "
+            "wrap bare words in %%…%%. Use this when you want exactly "
+            "the value you typed, no implicit substring search."
+        ),
     )
     p.add_argument(
         "--format",
@@ -54,8 +74,23 @@ def _build_parser() -> argparse.ArgumentParser:
     return p
 
 
+def _to_pattern(value: str, *, exact: bool, field: str) -> str:
+    """Wrap ``value`` for SQL LIKE if not exact mode and no wildcards."""
+    if exact:
+        return value
+    if "%" in value or "_" in value:
+        return value
+    return f"%{value}%"
+
+
 def main(argv: list[str] | None = None) -> int:
     args = _build_parser().parse_args(argv)
+
+    surname_pat = _to_pattern(args.surname, exact=args.exact, field="surname")
+    given_pat = (
+        _to_pattern(args.given, exact=args.exact, field="given")
+        if args.given else None
+    )
 
     try:
         db = open_database(args.database)
@@ -67,10 +102,10 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     try:
-        people = find_by_surname(
+        people = find_person(
             db.con,
-            args.surname,
-            given=args.given,
+            surname=surname_pat,
+            given=given_pat,
             limit=args.limit,
         )
     finally:
@@ -88,7 +123,10 @@ def main(argv: list[str] | None = None) -> int:
         sys.stderr.write(
             f"# source: {args.database}\n"
             f"# db version: {db.version}\n"
-            f"# matches: {len(people)}\n"
+            f"# surname: {surname_pat!r}"
+            + (f"  given: {given_pat!r}" if given_pat else "")
+            + ("  mode: exact" if args.exact else "  mode: substring-or-pattern")
+            + f"\n# matches: {len(people)}\n"
         )
         print(to_text(people))
     return 0

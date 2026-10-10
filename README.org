@@ -19,7 +19,7 @@ argparse.
 - *Standard library only* — no =requirements.txt=, no install dance
   beyond =pip install -e .=
 - *Evidence-grade* — output carries source citations, never just
-  "a PlaceholderSurnameTwo was born in PlaceholderPlace".
+  "person @pid7 was born in FFakePlace-1".
 
 For the project's sourcing rules and what "evidence-grade" means in
 practice, see =../../AGENTS.md= and =../../references/evidence-discipline.md=.
@@ -50,14 +50,14 @@ runtime dependencies.)
 * Quick start
 
 #+begin_src shell
-rm-find Tree.rmtree PlaceholderSurname          # surname search
-rm-dump Tree.rmtree 1              # full person record
+rm-find Tree.rmtree AAAAAA           # surname search
+rm-dump Tree.rmtree 1                # full person record
 #+end_src
 
 Both commands print to =stdout= and metadata to =stderr=. Pipe at will:
 
 #+begin_src shell
-rm-find Tree.rmtree PlaceholderSurname --format json --limit 10 | jq '.results[].primary_name.surname'
+rm-find Tree.rmtree AAAAAA --format json --limit 10 | jq '.results[].primary_name.surname'
 rm-dump Tree.rmtree 7 --format json > person-7.json
 #+end_src
 
@@ -66,22 +66,23 @@ rm-dump Tree.rmtree 7 --format json > person-7.json
 ** rm-find — search by surname
 
 #+begin_src shell
-rm-find Tree.rmtree PlaceholderSurname
-rm-find Tree.rmtree PlaceholderSurnameTwo --format json --limit 50
-rm-find Tree.rmtree PlaceholderSurname --given PlaceholderGiven
+rm-find Tree.rmtree AAAAAA           # substring (default)
+rm-find Tree.rmtree 'AAA%'           # wildcard (LIKE)
+rm-find Tree.rmtree AAAAAA --exact   # literal match, no % wrap
+rm-find Tree.rmtree 'AAA%' --given Frida
 #+end_src
 
-Matches the *primary* (birth, =NameType=0=) surname case-insensitively,
-substring by default. Anchor with =%= for prefix or exact match:
+Both =surname= and =--given= are SQL LIKE patterns, case-insensitive:
 
-#+begin_src shell
-rm-find Tree.rmtree 'PlaceholderSurnameTwo%'      # prefix only
-rm-find Tree.rmtree 'PlaceholderSurnameTwo'        # exact, case-insensitive
-rm-find Tree.rmtree '%PlaceholderSurnameTwo%'      # substring (default behaviour)
-#+end_src
+| Pattern | Matches |
+|---------+---------|
+| =AAAAAA=  | the literal substring =AAAAAA= (auto-wrapped as =%AAAAAA%= when no wildcards present) |
+| ='AAA%'= | names *starting* with =AAA= (=AAABBB=, =AAAAAA=, =AAAxxx=, …) |
+| ='A_AAA'= | =AAAAAA=, =ABAAAA=, =ACAAAA=, =A0AAAA=, … (=_= = exactly one char) |
+| ='%AAAA%'= | names *containing* =AAAA= anywhere |
 
-The =--given= filter applies to the primary given-name field. Both
-filters accept =LIKE= patterns, so =--given 'Ann%= works too.
+Pass =--exact= when you want exactly the value you typed — useful when
+the surname genuinely contains =%= or =_= as literal characters.
 
 *Output formats*
 
@@ -149,7 +150,7 @@ with open_database("Tree.rmtree") as db:
     # Library queries always go through db.con, the underlying
     # read-only sqlite3.Connection. Direct SQL is fine; the rest of
     # the package is just convenience around it.
-    people = find_by_surname(db.con, "PlaceholderSurname")
+    people = find_by_surname(db.con, "AAAAAA")
     for p in people:
         print(p.person_id, p.display_name)
 
