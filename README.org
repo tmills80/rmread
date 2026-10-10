@@ -1,0 +1,193 @@
+#+TITLE: rmread
+#+STARTUP: overview
+#+STARTUP: hidestars
+
+Read-only access to RootsMagic (.rmtree) SQLite databases, with a
+couple of CLI tools for the common queries. Designed for actual
+research use: cite-first, provenance over polish, no third-party
+dependencies.
+
+* What it is
+
+rmread is a Python library plus two CLI commands that read from
+RootsMagic 7+ databases (verified against RM 11.0) without modifying
+them. It uses only the Python standard library — sqlite3, dataclasses,
+argparse.
+
+- *Read-only* — always opens with =mode=ro= plus =PRAGMA query_only=.
+  A stray write raises rather than mutating research data.
+- *Standard library only* — no =requirements.txt=, no install dance
+  beyond =pip install -e .=
+- *Evidence-grade* — output carries source citations, never just
+  "a PlaceholderSurnameTwo was born in PlaceholderPlace".
+
+For the project's sourcing rules and what "evidence-grade" means in
+practice, see =../../AGENTS.md= and =../../references/evidence-discipline.md=.
+
+* What it is not
+
+- Not a Root-aware editor. rmread will not change anything in your
+  =.rmtree=, ever.
+- Not a genealogical-format converter. GEDCOM / Gramps interop
+  belongs in a sibling tool, not this one.
+- Not built for parallel scanning. One SQLite connection per process
+  is fine for real-world trees (100k+ persons run in a second or
+  two); for genuinely big data, look elsewhere.
+
+* Install
+
+#+begin_src shell
+git clone <this-repo>
+cd genealogy_tools
+python -m venv .venv
+source .venv/bin/activate
+pip install -e tools/rmread[dev]
+#+end_src
+
+(=[dev]= pulls in =pytest=. The library itself has no third-party
+runtime dependencies.)
+
+* Quick start
+
+#+begin_src shell
+rm-find Tree.rmtree PlaceholderSurname          # surname search
+rm-dump Tree.rmtree 1              # full person record
+#+end_src
+
+Both commands print to =stdout= and metadata to =stderr=. Pipe at will:
+
+#+begin_src shell
+rm-find Tree.rmtree PlaceholderSurname --format json --limit 10 | jq '.results[].primary_name.surname'
+rm-dump Tree.rmtree 7 --format json > person-7.json
+#+end_src
+
+* CLI tools
+
+** rm-find — search by surname
+
+#+begin_src shell
+rm-find Tree.rmtree PlaceholderSurname
+rm-find Tree.rmtree PlaceholderSurnameTwo --format json --limit 50
+rm-find Tree.rmtree PlaceholderSurname --given PlaceholderGiven
+#+end_src
+
+Matches the *primary* (birth, =NameType=0=) surname case-insensitively,
+substring by default. Anchor with =%= for prefix or exact match:
+
+#+begin_src shell
+rm-find Tree.rmtree 'PlaceholderSurnameTwo%'      # prefix only
+rm-find Tree.rmtree 'PlaceholderSurnameTwo'        # exact, case-insensitive
+rm-find Tree.rmtree '%PlaceholderSurnameTwo%'      # substring (default behaviour)
+#+end_src
+
+The =--given= filter applies to the primary given-name field. Both
+filters accept =LIKE= patterns, so =--given 'Ann%= works too.
+
+*Output formats*
+
+- =text= (default) — fixed-column table, one row per person. Designed
+  for reading; truncates long fields with =…=.
+- =json= — envelope-stamped JSON suitable for piping or scripted
+  downstream use.
+
+#+begin_src json
+{
+  "envelope": {
+    "tool": "rmread",
+    "source_database": "Tree.rmtree",
+    "db_version": 11000,
+    "count": 1
+  },
+  "results": [
+    {
+      "person_id": 5,
+      "unique_id": "...",
+      "sex": 1,
+      "living": false,
+      "is_private": false,
+      "primary_name": { "surname": "...", "given": "...", "...": "..." }
+    }
+  ]
+}
+#+end_src
+
+The =source_database= and =db_version= stamps let a downstream tool
+verify provenance without trusting the caller.
+
+** rm-dump — full person record
+
+#+begin_src shell
+rm-dump Tree.rmtree 7                       # everything
+rm-dump Tree.rmtree 7 --format json          # as JSON
+rm-dump Tree.rmtree 7 --no-events           # identity + family only
+rm-dump Tree.rmtree 7 --no-family           # identity + events only
+#+end_src
+
+Dumps everything rmread knows about a single =PersonID=: identity,
+recorded life events (birth / death / burial / christening /
+baptism / cremation / occupation / census / probate / will /
+residence by default), parents, spouses, children.
+
+*Exit codes*
+
+| Code | Meaning |
+|------+---------|
+| =0=  | Found and rendered |
+| =1=  | No such =PersonID= in this database |
+| =2=  | File missing or not a valid RootsMagic SQLite file |
+
+Exit codes are stable — script away.
+
+* As a library
+
+#+begin_src python
+from rmread import open_database, find_by_surname, dump_person
+
+with open_database("Tree.rmtree") as db:
+    print(f"RM version: {db.version}")
+
+    # Library queries always go through db.con, the underlying
+    # read-only sqlite3.Connection. Direct SQL is fine; the rest of
+    # the package is just convenience around it.
+    people = find_by_surname(db.con, "PlaceholderSurname")
+    for p in people:
+        print(p.person_id, p.display_name)
+
+    # Full person record — identity + events + parents/spouses/children.
+    dump = dump_person(db.con, people[0].person_id)
+    for ev in dump.events:
+        print(f"  {ev.event_type_name}: {ev.date} at {ev.place}")
+#+end_src
+
+The public dataclass surface:
+
+- =Name=, =Person=, =PersonDump= — people
+- =Event=, =DEFAULT_EVENT_TYPES= — life facts
+- =ParentRef=, =SpouseLink=, =ChildRef= — family links
+
+All dataclasses are frozen and hashable so they can go in sets or
+be keys.
+
+* Caveats
+
+- *Never commit a *.rmtree* file.* =.gitignore= at the repo root
+  excludes =*.rmtree= and =*.rmgc=. Real RootsMagic databases contain
+  living-people records and are not version-controlled here.
+- *Use synthetic data in tests.* The test suite in this repo does
+  not open a real =.rmtree=. If you fork or copy the library,
+  preserve that.
+- *Cross-vault matches are not kinship.* Like any RootsMagic query,
+  same-surname hits in different researcher vaults ≠ same family.
+  See =../../references/evidence-discipline.md= §3.
+
+* See also
+
+- =DEVELOPMENT.org= — maintainer notes, layout, dev workflow.
+- =docs/scaffolding-context.md= — domain-specific guidance
+  (synthetic-data rules, RM 11 column names, parents-vs-co-parents).
+- =../../references/evidence-discipline.md= — sourcing rules shared
+  across the genealogy_tools repo.
+
+* Licence
+
+Same as the parent repository.

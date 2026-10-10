@@ -1,0 +1,168 @@
+#+TITLE: rmread — development
+#+STARTUP: overview
+#+STARTUP: hidestars
+
+Maintainer notes for rmread. Read =README.org= first if you want to
+*use* the package; this file is for the next person editing it.
+
+* Layout
+
+#+begin_example
+tools/rmread/
+├── pyproject.toml                       package metadata, CLI entry points
+├── README.org                           user-facing notes (install, CLI)
+├── DEVELOPMENT.org                      this file
+├── docs/
+│   └── scaffolding-context.md           project-local guidance
+├── src/rmread/
+│   ├── __init__.py                      re-exports the public surface
+│   ├── db.py                            RMDatabase — mode=ro + PRAGMA query_only
+│   ├── person.py                        Person, find_by_surname, dump_person
+│   ├── event.py                         load_events, Event, FactTypeTable lookup
+│   ├── family.py                        load_parents / spouses / children
+│   ├── format.py                        text + JSON renderers
+│   └── cli/
+│       ├── find.py                      rm-find
+│       └── dump.py                      rm-dump
+└── tests/
+    ├── __init__.py                      package marker
+    ├── _schema.py                       shared synthetic-RM schema builder
+    ├── test_db.py                       DB opens / closes / rejects garbage
+    ├── test_format.py                   text + JSON rendering
+    ├── test_event.py                    event loading + Unknown(<int>) fallback
+    ├── test_family.py                   parents / spouses / children links
+    └── test_dump.py                     PersonDump composition
+#+end_example
+
+* Module responsibilities
+
+** =db.py= — read-only connection
+
+- =RMDatabase(path)= opens a =.rmtree= file with:
+  1. SQLite URI =mode=ro=
+  2. =PRAGMA query_only= after opening
+  3. =try/except sqlite3.DatabaseError= around both, translated to
+     =SchemaError= so callers do not see raw =sqlite3= errors
+
+- Parses the root =ConfigTable= row (=RecID=1, =RecType=1, =Title=''=)
+  to extract the RM version. Anything < RM 7 (version < 7000) is
+  rejected — older databases have a different schema.
+
+- =RMDatabase.con= exposes the underlying =sqlite3.Connection= so
+  callers (and the rest of the library) can run direct SQL. Prefer
+  dedicated query functions in this package over direct SQL when
+  one exists — they keep statements in one place.
+
+** =person.py= — the loader-and-composer
+
+- =find_by_surname=, =load_alt_names= — narrow queries.
+- =get_person=, =dump_person= — single-person reads. =dump_person=
+  composes events + family into a =PersonDump=.
+- Lazy imports inside =dump_person= avoid the import cycle
+  (=event.py= and =family.py= don't import =person.py=, but
+  =person.py= now imports them for =dump_person=).
+
+** =event.py=, =family.py= — domain loaders
+
+These have the *one* =load_*= function each plus matching
+dataclasses. Pattern is consistent so new queries slot in
+identically. =Unknown(<int>)= fallback for codes not in the
+lookup table is required — RM users add custom fact types.
+
+** =cli/= — entry points
+
+- =argparse= with --help text that documents every flag.
+- Returns int exit codes (=0=, =1=, =2= from =rm-dump=, plus
+  file-missing-sentinel for =rm-find=).
+- Text output goes to =stdout=; diagnostic metadata goes to
+  =stderr= — keeps the two pipeable.
+
+* Tests
+
+#+begin_src shell
+pytest tools/rmread/tests/                   # all 47 tests
+pytest -v tools/rmread/tests/                # one line per test
+pytest tools/rmread/tests/test_family.py    # one module
+#+end_src
+
+The shared fixture =tests/_schema.py= builds a synthetic in-memory
+SQLite database with the minimum RM 7+ schema, seeded with a
+six-person family tree plus one orphan =PersonID=. Every other test
+file imports this fixture and uses synthetic data.
+
+*No real =.rmtree= is opened during testing.* That keeps CI
+reproducible and avoids accidentally writing real-people data into a
+test artifact. For smoke tests against a real database:
+
+#+begin_src shell
+source .venv/bin/activate
+rm-find SampleTree.rmtree PlaceholderSurname
+rm-dump SampleTree.rmtree 1
+#+end_src
+
+Real DBs at the repo root are gitignored (=*.rmtree=, =*.rmgc=).
+
+* Adding a new query
+
+1. Pick the module the query belongs in. For most queries that means
+   =event.py=, =family.py=, or a new sibling module if neither fits.
+2. Add a loader function that returns a dataclass. Match the
+   existing convention (single-purpose function, named =load_*=,
+   takes a connection and a =person_id= when relevant).
+3. Make the dataclass =frozen=True= (hashable, immutable).
+4. Re-export from =src/rmread/__init__.py= and add to =__all__=.
+5. Add tests in the matching =tests/test_*.py= using the synthetic
+   fixture in =tests/_schema.py=. Names must be obviously fake (see
+   =docs/scaffolding-context.md= §1).
+6. If the query is user-facing, add a CLI under =src/rmread/cli/=,
+   register it in =pyproject.toml=[project.scripts]= and the
+   CLI section of =README.org=.
+
+* Adding a new CLI command
+
+1. Create =src/rmread/cli/<cmd>.py= with =argparse= + =main()=.
+2. From =src/rmread/cli/= import =main= and re-export it (the
+   =__init__.py= there).
+3. Add a =[project.scripts]= entry to =pyproject.toml=. After
+   re-installing (=pip install -e tools/rmread=), the command
+   becomes callable.
+4. Smoke test on a real =.rmtree= file (remember to ignore it).
+
+* Things to remember
+
+- Read =docs/scaffolding-context.md= before touching tests.
+  The synthetic-data rules there exist because real-sounding
+  data can leak into research notes by mistake.
+- The roots-magic-dev =SampleTree.rmtree= in the repo root is for
+  development only. Never commit it; never commit output that
+  quotes real persons by name.
+- Schema-recon comes before SQL. If you add a query against a
+  new table, run =PRAGMA table_info(<table>)= first. Document
+  the discrepancy in =docs/scaffolding-context.md= if it differs
+  from what general RM docs say.
+- =Unknown(<int>)= is a feature, not a fallback. RM users add
+  custom fact types; we never know all of them. Defaulting to
+  "Unknown(N)" rather than crashing is the right behaviour.
+
+* Releasing / packaging
+
+Currently =pyproject.toml= is set up for editable install only —
+no =setup.py=, no wheel build, no PyPI publish. If release becomes
+necessary:
+
+- [ ] Bump =version= in =pyproject.toml=.
+- [ ] =python -m build= (needs the =build= package).
+- [ ] Tag the commit; push the tag.
+- [ ] Verify =pip install path/to/whl= works without an editable
+      install.
+
+Until that work happens: =pip install -e tools/rmread[dev]= from
+the repo root is the install path.
+
+* Cross-references
+
+- =README.org= — user-facing notes.
+- =docs/scaffolding-context.md= — project-local guidance.
+- =../../AGENTS.md= — repo-wide house style.
+- =../../references/evidence-discipline.md= — sourcing rules.
+- =scaffolding-codebases= (skill) — general scaffolding guidance.
