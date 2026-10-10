@@ -190,3 +190,111 @@ def load_alt_names(
         )
         for r in rows
     )
+
+
+# --- person dump ------------------------------------------------------
+
+@dataclass(frozen=True)
+class PersonDump:
+    """Everything we know about a Person: identity + events + family links."""
+
+    person: Person
+    events: tuple["Event", ...] = field(default_factory=tuple)
+    parents: tuple["ParentRef", ...] = field(default_factory=tuple)
+    spouses: tuple["SpouseLink", ...] = field(default_factory=tuple)
+    children: tuple["ChildRef", ...] = field(default_factory=tuple)
+
+
+def get_person(
+    con: sqlite3.Connection, person_id: int
+) -> Person | None:
+    """Load a single Person by PersonID. Returns None if not found."""
+    row = con.execute(
+        """
+        SELECT PersonID, UniqueID, Sex, Living, IsPrivate
+        FROM PersonTable
+        WHERE PersonID = ?
+        """,
+        (person_id,),
+    ).fetchone()
+    if row is None:
+        return None
+    name_row = con.execute(
+        """
+        SELECT NameID, Surname, Given, Prefix, Suffix, Nickname,
+               NameType, IsPrimary, BirthYear, DeathYear, Sentence
+        FROM NameTable
+        WHERE OwnerID = ? AND NameType = 0
+        """,
+        (person_id,),
+    ).fetchone()
+    if name_row is None:
+        # Person exists but no primary name — return a stub with empty Name.
+        # This is rare but RM allows it (e.g. imported records that haven't
+        # been reconciled yet).
+        primary = Name(
+            name_id=0, surname="", given="", prefix="", suffix="",
+            nickname="", name_type=0, is_primary=True,
+            birth_year=None, death_year=None, sentence="",
+        )
+    else:
+        primary = Name(
+            name_id=name_row["NameID"],
+            surname=name_row["Surname"] or "",
+            given=name_row["Given"] or "",
+            prefix=name_row["Prefix"] or "",
+            suffix=name_row["Suffix"] or "",
+            nickname=name_row["Nickname"] or "",
+            name_type=name_row["NameType"],
+            is_primary=bool(name_row["IsPrimary"]),
+            birth_year=name_row["BirthYear"] if name_row["BirthYear"] else None,
+            death_year=name_row["DeathYear"] if name_row["DeathYear"] else None,
+            sentence=name_row["Sentence"] or "",
+        )
+    return Person(
+        person_id=row["PersonID"],
+        unique_id=row["UniqueID"] or "",
+        sex=row["Sex"],
+        living=bool(row["Living"]),
+        is_private=bool(row["IsPrivate"]),
+        primary_name=primary,
+    )
+
+
+def dump_person(
+    con: sqlite3.Connection,
+    person_id: int,
+    *,
+    include_events: bool = True,
+    include_family: bool = True,
+) -> PersonDump | None:
+    """Compose a full PersonDump for ``person_id`` — identity, events, family.
+
+    Returns None if no such PersonID exists. Either family or events can be
+    suppressed via the corresponding flag — useful for narrow lookups.
+    """
+    # Lazy imports to avoid an import cycle (event.py / family.py don't
+    # import person.py, but module-load order in editable installs can be
+    # subtle).
+    from .event import load_events
+    from .family import load_children, load_parents, load_spouses
+
+    person = get_person(con, person_id)
+    if person is None:
+        return None
+    events = tuple(load_events(con, person_id)) if include_events else ()
+    parents: tuple = ()
+    spouses: tuple = ()
+    children: tuple = ()
+    if include_family:
+        parents = tuple(load_parents(con, person_id))
+        spouses = tuple(load_spouses(con, person_id))
+        children = tuple(load_children(con, person_id))
+    return PersonDump(
+        person=person,
+        events=events,
+        parents=parents,
+        spouses=spouses,
+        children=children,
+    )
+

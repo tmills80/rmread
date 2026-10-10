@@ -1,14 +1,47 @@
 """rmread — read-only access to RootsMagic SQLite databases."""
 
 from .db import RMDatabase, SchemaError, open_database
-from .person import Name, Person, find_by_surname, load_alt_names
+from .event import DEFAULT_EVENT_TYPES, Event, load_events
+from .family import (
+    ChildRef,
+    ParentRef,
+    SpouseLink,
+    load_children,
+    load_parents,
+    load_spouses,
+)
+from .person import (
+    Name,
+    Person,
+    PersonDump,
+    dump_person,
+    find_by_surname,
+    get_person,
+    load_alt_names,
+)
 
 __all__ = [
+    # core
     "RMDatabase",
     "SchemaError",
     "open_database",
+    # people
     "Name",
     "Person",
+    "PersonDump",
+    "dump_person",
     "find_by_surname",
+    "get_person",
     "load_alt_names",
+    # events
+    "DEFAULT_EVENT_TYPES",
+    "Event",
+    "load_events",
+    # family
+    "ChildRef",
+    "ParentRef",
+    "SpouseLink",
+    "load_children",
+    "load_parents",
+    "load_spouses",
 ]

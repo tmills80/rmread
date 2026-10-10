@@ -12,6 +12,7 @@ dependencies = []
 
 [project.scripts]
 rm-find = "rmread.cli.find:main"
+rm-dump = "rmread.cli.dump:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
