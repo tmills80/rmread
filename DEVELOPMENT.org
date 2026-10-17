@@ -136,10 +136,12 @@ Real DBs at the repo root are gitignored (=*.rmtree=, =*.rmgc=).
 - The roots-magic-dev =SampleTree.rmtree= in the repo root is for
   development only. Never commit it; never commit output that
   quotes real persons by name.
-- Schema-recon comes before SQL. If you add a query against a
-  new table, run =PRAGMA table_info(<table>)= first. Document
-  the discrepancy in =docs/scaffolding-context.md= if it differs
-  from what general RM docs say.
+- =docs/rm11-schema.md= is the source of truth for column
+  names, fact-type IDs, and link-table =OwnerType= conventions.
+  If you add a query against a table that has been verified
+  there, the column names are already correct; if you add a
+  query against a *new* table, run =PRAGMA table_info(<table>)=
+  first and append the discovered columns to the schema doc.
 - =Unknown(<int>)= is a feature, not a fallback. RM users add
   custom fact types; we never know all of them. Defaulting to
   "Unknown(N)" rather than crashing is the right behaviour.

@@ -183,9 +183,12 @@ be keys.
 
 * See also
 
-- =DEVELOPMENT.org= — maintainer notes, layout, dev workflow.
-- =docs/scaffolding-context.md= — domain-specific guidance
-  (synthetic-data rules, RM 11 column names, parents-vs-co-parents).
+- =docs/rm11-schema.md= — RM 11.0 SQLite schema reference. Full
+  column lists for every =.rmtree= table, verified event-type
+  IDs, the =RMNOCASE= collation footgun, link-table =OwnerType=
+  conventions, and the bug list verified against =SampleTree.rmtree=.
+- =docs/scaffolding-context.md= — project-local guidance
+  (synthetic-data rules, parents-vs-co-parents, read-only safeguards).
 - =../../references/evidence-discipline.md= — sourcing rules shared
   across the genealogy_tools repo.
 

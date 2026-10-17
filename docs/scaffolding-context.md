@@ -75,6 +75,18 @@ RootsMagic databases contain living-people records and are never
 committed. The library's tests run against synthetic in-memory SQLite;
 no real file should be opened from CI.
 
+## Where the schema facts now live
+
+Schema-column recon, verified RM 11 fact-type IDs, the `RMNOCASE`
+collation pitfall, the link-table `OwnerType` polymorphism
+convention, and the list of bugs verified against
+`SampleTree.rmtree` are all consolidated in
+`docs/rm11-schema.md` (the schema reference). This file continues
+to hold the project-local conventions and recon workflow — the
+*how on this codebase*; the schema reference is the *what*. See
+the other doc for column lists and any column-name discrepancy
+between RM docs and the real database.
+
 ## Parents vs co-parents
 
 `load_parents(pid)` in `tools/rmread/src/rmread/family.py` returns the
@@ -89,3 +101,19 @@ returning the FatherID/MotherID of every family where `person_id` is
 a `ChildID`. Multiple parent families (adoption, multiple marriages)
 return more than two ParentRefs; we expose them all and let callers
 disambiguate using the `family_id`.
+
+## Fact-type IDs in `event.py::DEFAULT_EVENT_TYPES`
+
+The default event-type tuple in `tools/rmread/src/rmread/event.py`
+must be the **integer IDs RM 11 actually uses**, not the numbers
+the inline comments claim. The schema reference doc lists the
+verified IDs and the wrong/right pairs. When editing the tuple,
+take the IDs from `SELECT FactTypeID, Name FROM FactTypeTable`
+against a real `.rmtree`, not from memory or from third-party RM
+docs. The fact-type *names* the loader outputs (via
+`FactTypeTable.Name`) are still correct — it's the filter
+`EventType IN (…)` that picks the wrong rows.
+
+The same rule applies to any other code path that filters rows by
+an integer code from a vendor's lookup table: let the lookup
+table ground the values; never trust a copy-pasted comment.
