@@ -13,7 +13,7 @@ def test_load_events_returns_seeded_facts(full_db):
     # appear. The Unknown(999) fallback path is covered by
     # test_load_events_can_explicitly_include_custom below.
     assert (1, "Birth") in types
-    assert (17, "Occupation") in types
+    assert (26, "Occupation") in types
     assert (2, "Death") in types
     assert (999, "Unknown(999)") not in types
 
@@ -22,7 +22,7 @@ def test_load_events_resolves_unknown_fact_type_for_custom(full_db):
     """event_type=999 has no FactTypeTable row — must fall back to
     ``Unknown(999)`` rather than crash."""
     from rmread import load_events
-    events = load_events(full_db.con, 1, event_types=(1, 2, 17, 33, 999))
+    events = load_events(full_db.con, 1, event_types=(1, 2, 26, 4, 999))
     custom = next(e for e in events if e.event_type == 999)
     assert custom.event_type_name == "Unknown(999)"
 
@@ -38,7 +38,7 @@ def test_load_events_filters_to_default_types(full_db):
 
 def test_load_events_can_explicitly_include_custom(full_db):
     from rmread import load_events
-    events = load_events(full_db.con, 1, event_types=(1, 2, 17, 33, 999))
+    events = load_events(full_db.con, 1, event_types=(1, 2, 26, 4, 999))
     assert 999 in {e.event_type for e in events}
 
 
@@ -47,7 +47,7 @@ def test_load_events_sorts_by_sort_date(full_db):
     events = load_events(full_db.con, 1)
     # Default filter excludes 999, so the order is: eid1(Birth, sd=1),
     # eid2(Occupation, sd=2), eid3(Death, sd=0). SortDate=0 sinks to end.
-    assert [e.event_type for e in events] == [1, 17, 2]
+    assert [e.event_type for e in events] == [1, 26, 2]
 
 
 def test_load_events_returns_empty_for_no_events(full_db):

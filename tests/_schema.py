@@ -30,11 +30,15 @@ import pytest
 
 
 # Fact names corresponding to the synthetic EventType ints below.
+# IDs match the verified RM 11.0 FactTypeIDs in
+# ``rmread.event.DEFAULT_EVENT_TYPES`` and
+# ``docs/rm11-schema.md`` §"Verified RM 11 IDs for the names
+# `rmread` cares about".
 _FACT_NAMES = {
     1: "Birth",
     2: "Death",
-    17: "Occupation",
-    33: "Residence",
+    26: "Occupation",
+    4: "Burial",
 }
 
 
@@ -187,12 +191,12 @@ def _populate_default(cur) -> None:
     _seed_child(cur, rid=1, family_id=3, child_id=5, order=1, rel_father=1, rel_mother=1)
     _seed_child(cur, rid=2, family_id=3, child_id=6, order=2, rel_father=1, rel_mother=1)
 
-    # Events: pid 1 — birth, death, occupation.
+    # Events: pid 1 — birth, occupation, death.
     _seed_event(cur, eid=1, event_type=1, owner_id=1,
                 date="1 JAN 1901", sort_date=1, primary=1,
                 sentence="BIRTH 1 JAN 1901",
                 place_text="FFakePlace-1")
-    _seed_event(cur, eid=2, event_type=17, owner_id=1,
+    _seed_event(cur, eid=2, event_type=26, owner_id=1,
                 date="BET 1925 AND 1930", sort_date=2,
                 sentence="OCCUPATION 1925-1930",
                 details="ZZ-fake-detail")

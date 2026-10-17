@@ -18,18 +18,26 @@ from dataclasses import dataclass
 # genealogist-specific tags (DNA, LDS, custom). This tuple covers the
 # civil facts a person dump usually wants. The raw ``event_type`` int is
 # always available on the returned ``Event`` for callers that want more.
+#
+# IMPORTANT: these are integer FactTypeIDs from RM's ``FactTypeTable`` —
+# NOT generic placeholders. Wrong IDs land the SQL filter on the wrong
+# fact rows without raising (the FactTypeTable.Name lookup will return
+# a misleading name). Take the IDs from ``SELECT FactTypeID, Name FROM
+# FactTypeTable`` against a real ``.rmtree``; see
+# ``docs/rm11-schema.md`` §"Verified RM 11 IDs for the names `rmread`
+# cares about" for the mapping captured against RM 11.0.
 DEFAULT_EVENT_TYPES: tuple[int, ...] = (
     1,    # Birth
     2,    # Death
-    3,    # Burial
-    8,    # Christening
-    9,    # Baptism
-    10,   # Cremation
-    17,   # Occupation
-    22,   # Census
-    25,   # Probate
-    27,   # Will
-    33,   # Residence
+    4,    # Burial
+    3,    # Christening (RM stores it as "Christen")
+    7,    # Baptism
+    5,    # Cremation
+    26,   # Occupation
+    18,   # Census
+    19,   # Probate
+    20,   # Will
+    29,   # Residence
 )
 
 
