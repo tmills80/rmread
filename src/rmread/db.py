@@ -7,6 +7,7 @@ rather than silently corrupting research data.
 from __future__ import annotations
 
 import sqlite3
+import unicodedata
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from pathlib import Path
@@ -14,6 +15,19 @@ from pathlib import Path
 
 class SchemaError(Exception):
     """Raised when the database does not look like a RootsMagic file."""
+
+
+def _rmnocase(value, _name=None):
+    """RMNOCASE collation function: case-fold + Unicode-diacritic-strip.
+
+    SQLite passes the column value as ``value`` and the collation name
+    as ``_name``; the latter is ignored (Python's sqlite3 expects the
+    callback shape ``(str, str) -> int``).
+    """
+    if value is None:
+        return None
+    nfkd = unicodedata.normalize("NFKD", str(value))
+    return "".join(c for c in nfkd if not unicodedata.combining(c)).casefold()
 
 
 @dataclass(frozen=True)
@@ -97,6 +111,16 @@ class RMDatabase:
             )
         except sqlite3.DatabaseError as e:
             raise SchemaError(f"{self.path} is not a valid SQLite database: {e}") from e
+        # Register RM's RMNOCASE collation before any user query. Many
+        # RM TEXT columns (NameTable.Surname, PlaceTable.Name,
+        # AddressTable.Name, CitationTable.CitationName, …) are
+        # declared COLLATE RMNOCASE — a case-fold + diacritic-strip
+        # collation that Python's sqlite3 doesn't ship. Without this
+        # registration, even read-only queries against those tables
+        # raise ``no such collation sequence: RMNOCASE``. See
+        # ``tools/rmread/docs/rm11-schema.md`` § "The ``RMNOCASE``
+        # collation" for the original bug report.
+        self._con.create_collation("RMNOCASE", _rmnocase)
         # Defensive: refuse to run any write even if mode=ro is dropped.
         # A "not a database" file opens cleanly but raises on first query —
         # _read_root_info will then raise OperationalError, which we map
