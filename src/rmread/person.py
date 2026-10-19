@@ -76,7 +76,7 @@ FROM PersonTable pt
 JOIN NameTable primaryName
     ON primaryName.OwnerID = pt.PersonID
    AND primaryName.NameType = 0
-WHERE primaryName.Surname LIKE ? COLLATE NOCASE
+WHERE {where}
 ORDER BY primaryName.Surname COLLATE NOCASE,
          primaryName.Given COLLATE NOCASE,
          pt.PersonID
@@ -166,10 +166,7 @@ def find_person(
             clauses.append("primaryName.Given LIKE ? COLLATE NOCASE")
             params.append(given_pat)
 
-    sql = _SURNAME_SEARCH_SQL.replace(
-        "WHERE primaryName.Surname LIKE ? COLLATE NOCASE",
-        f"WHERE {' AND '.join(clauses)}",
-    )
+    sql = _SURNAME_SEARCH_SQL.format(where=" AND ".join(clauses))
     if limit is not None:
         sql += "\nLIMIT ?"
         params.append(int(limit))

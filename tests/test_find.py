@@ -279,3 +279,49 @@ def test_find_person_underscore_too_short_does_not_match(fake_db):
     from rmread import find_person
     pids = list(find_person(fake_db.con, surname="AAAA_"))
     assert pids == []
+
+
+# --- SQL template guards ---------------------------------------------------
+#
+# find_person formats its WHERE clause into _SURNAME_SEARCH_SQL. Note
+# that sqlite3's trace callback reports the *expanded* statement
+# (placeholders already substituted), so it cannot be used to assert
+# that input stays parameterised. These tests pin what is observable:
+# the template shape, and that every clause combination builds SQL
+# sqlite3 accepts.
+#
+# Parameterisation itself is guaranteed structurally — the only
+# value ever formatted into the statement is " AND ".join(clauses),
+# and clauses are constant strings.
+
+
+def test_search_sql_template_exposes_one_where_slot():
+    """The SQL constant must expose exactly one {where} slot.
+
+    A stray literal brace would raise KeyError at runtime; a missing
+    one would silently drop the surname filter and return every
+    person in the database.
+    """
+    from rmread.person import _SURNAME_SEARCH_SQL
+    assert _SURNAME_SEARCH_SQL.count("{where}") == 1
+    assert "{" not in _SURNAME_SEARCH_SQL.replace("{where}", "")
+
+
+def test_find_person_each_clause_shape_executes(fake_db):
+    """Every supported filter combination must build valid SQL.
+
+    Guards the format() path: a clause appended without a matching
+    params entry raises "Incorrect number of bindings" at execute
+    time. Running each shape is the assertion.
+    """
+    from rmread import find_person
+
+    cases: list[dict[str, object]] = [
+        {"surname": "QQQQQQ"},
+        {"surname": "QQQQQQ", "given": "Zxexy"},
+        {"surname": "QQQQQQ", "given": ""},
+        {"surname": "QQQQQQ", "limit": 2},
+        {"surname": "QQQQQQ", "given": "Z__", "limit": 1},
+    ]
+    for kwargs in cases:
+        find_person(fake_db.con, **kwargs)  # type: ignore[arg-type]
