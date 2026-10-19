@@ -10,6 +10,14 @@ requires-python = ">=3.12"
 # Standard library only — sqlite3, dataclasses, argparse.
 dependencies = []
 
+[project.optional-dependencies]
+# Test-only. Named `test` to match the sibling tools that declare an
+# extras group (rmtree-fake, rmtree-anonymize). The library itself
+# remains standard-library only.
+test = [
+    "pytest>=8",
+]
+
 [project.scripts]
 rm-find = "rmread.cli.find:main"
 rm-dump = "rmread.cli.dump:main"

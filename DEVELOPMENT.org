@@ -158,7 +158,7 @@ necessary:
 - [ ] Verify =pip install path/to/whl= works without an editable
       install.
 
-Until that work happens: =pip install -e tools/rmread[dev]= from
+Until that work happens: =pip install -e tools/rmread[test]= from
 the repo root is the install path.
 
 * Cross-references

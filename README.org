@@ -41,11 +41,12 @@ git clone <this-repo>
 cd genealogy_tools
 python -m venv .venv
 source .venv/bin/activate
-pip install -e tools/rmread[dev]
+pip install -e tools/rmread[test]
 #+end_src
 
-(=[dev]= pulls in =pytest=. The library itself has no third-party
-runtime dependencies.)
+(=test= pulls in =pytest=. The library itself has no third-party
+runtime dependencies. The extras group is named =test= to match the
+sibling tools =rmtree-fake= and =rmtree-anonymize=.)
 
 * Quick start
 
