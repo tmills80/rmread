@@ -86,12 +86,30 @@ def fake_db():
                 os.unlink(p)
 
 
-# ----- legacy find_by_surname (substring wrap) ------------------------
+# ----- find_by_surname (verbatim LIKE, no substring wrap) -------------
+#
+# find_by_surname is a positional-arg wrapper over find_person and
+# does NOT auto-wrap bare words as %value%. These tests pin that: a
+# pattern that would match under wrapping must return [] under the
+# current behaviour. rm-find's CLI substring default lives in
+# cli/find._to_pattern, not here.
 
-def test_find_by_surname_substring_default(fake_db):
+def test_find_by_surname_no_substring_wrap(fake_db):
+    """A bare prefix must NOT match as a substring.
+
+    'ABC' is a prefix of 'ABCAAB' (pid 5). Under substring wrapping
+    this would return {5}; verbatim LIKE matching returns nothing.
+    This is the regression guard — if wrapping is ever reintroduced,
+    this test fails.
+    """
     from rmread import find_by_surname
-    # Plain "AAAAAA" — no wildcards — should substring-wrap and match
-    # all three AAAAAA records.
+    assert find_by_surname(fake_db.con, "ABC") == []
+
+
+def test_find_by_surname_exact_match(fake_db):
+    from rmread import find_by_surname
+    # Plain "AAAAAA" — literal match on all three AAAAAA records.
+    # (Same result under wrapping; kept as the happy-path anchor.)
     pids = {p.person_id for p in find_by_surname(fake_db.con, "AAAAAA")}
     assert pids == {1, 2, 3}
 
@@ -119,14 +137,14 @@ def test_find_by_surname_rejects_empty(fake_db):
 
 def test_find_by_surname_given_filter(fake_db):
     from rmread import find_by_surname
-    # Plain "Zoe" given — substring wrap.
+    # Given "Zoe" is a literal LIKE match — not substring-wrapped.
     pids = {p.person_id for p in find_by_surname(fake_db.con, "AAAAAA", given="Zoe")}
     assert pids == {1}
 
 
 def test_find_by_surname_given_wildcard(fake_db):
     from rmread import find_by_surname
-    # Plain "Z" — substring wraps to "%Z%" — matches any given containing Z.
+    # "%Z%" — matches any given containing Z.
     pids = {p.person_id for p in find_by_surname(fake_db.con, "AAAAAA", given="%Z%")}
     # Yara contains no Z; Zoe/Zed both contain Z.
     assert pids == {1, 3}

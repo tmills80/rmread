@@ -90,12 +90,21 @@ def find_by_surname(
     given: str | None = None,
     limit: int | None = None,
 ) -> list[Person]:
-    """Backwards-compatible substring search by primary surname.
+    """Search the primary surname. **No substring wrapping.**
 
-    If ``surname`` (or ``given``) contains ``%`` or ``_`` it is treated as
-    a SQL LIKE pattern and passed through verbatim. Otherwise the value
-    is wrapped as ``%value%`` for substring matching. For explicit
-    pattern control, use :func:`find_person`.
+    ``surname`` (and ``given``) are SQL LIKE patterns passed through
+    verbatim, exactly as in :func:`find_person`: ``"AAAAAA"`` matches
+    only the literal surname, ``"AAAA%"`` matches prefixes,
+    ``"%AAAA%"`` matches anywhere. A bare word is *not* auto-wrapped —
+    use the wildcards explicitly.
+
+    This is a positional-argument wrapper kept for callers written
+    against the earlier API. ``find_by_surname(con, "Smith")`` and
+    ``find_person(con, surname="Smith")`` are equivalent.
+
+    Note: the =rm-find= CLI *does* wrap a bare word as ``%value%``
+    before calling in (see ``rmread.cli.find._to_pattern``), so the
+    CLI's default substring behaviour is not inherited from here.
     """
     if not surname or not surname.strip():
         raise ValueError("surname must be a non-empty string")
