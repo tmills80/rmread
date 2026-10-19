@@ -65,6 +65,10 @@ def _read_root_info(con: sqlite3.Connection) -> RootInfo:
         el = root.find(tag)
         return el.text if (el is not None and el.text is not None) else None
 
+    # Every integer parse out of the root blob is guarded here: a
+    # malformed value must surface as SchemaError, not a bare
+    # ValueError, because that is the documented contract callers
+    # catch against.
     try:
         version = int(text("Version") or "0")
         st_version = int(text("STVersion") or "0")
@@ -74,12 +78,18 @@ def _read_root_info(con: sqlite3.Connection) -> RootInfo:
     root_pid = text("RootPerson")
     if root_pid is None:
         raise SchemaError("ConfigTable root has no <RootPerson>.")
+    try:
+        root_person_id = int(root_pid)
+    except ValueError as e:
+        raise SchemaError(
+            f"non-integer RootPerson in ConfigTable: {e}"
+        ) from e
 
     return RootInfo(
         version=version,
         st_version=st_version,
         unique_id=text("UniqueID") or "",
-        root_person_id=int(root_pid),
+        root_person_id=root_person_id,
         preparer_email=text("PreparerEmail"),
     )
 

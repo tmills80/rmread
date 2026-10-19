@@ -7,6 +7,7 @@ All data is **synthetic** — fake names invented for tests ("AAAAAA",
 
 from __future__ import annotations
 
+import os
 import sqlite3
 
 import pytest
@@ -155,6 +156,70 @@ def test_schema_error_on_garbage_file(tmp_path):
 def test_schema_error_on_missing_file(tmp_path):
     with pytest.raises(FileNotFoundError):
         open_database(tmp_path / "nope.rmtree")
+
+
+def _open_with_root_blob(tmp_path, blob: bytes):
+    """Build a minimal RM DB whose ConfigTable root row is ``blob``.
+
+    Returns the path. Used to pin how malformed root values surface.
+    """
+    path = tmp_path / "badroot.rmtree"
+    build = sqlite3.connect(path)
+    _bootstrap_schema(build.cursor())
+    build.cursor().execute("DELETE FROM ConfigTable")
+    build.cursor().execute(
+        "INSERT INTO ConfigTable (RecID, RecType, Title, DataRec) "
+        "VALUES (1, 1, '', ?)", (blob,),
+    )
+    build.commit()
+    build.close()
+    for ext in ("-wal", "-shm", "-journal"):
+        p = str(path) + ext
+        if os.path.exists(p):
+            os.unlink(p)
+    return path
+
+
+def test_schema_error_on_non_integer_root_person(tmp_path):
+    """A malformed RootPerson raises SchemaError, not a bare ValueError.
+
+    Callers are documented to catch SchemaError; a leaking ValueError
+    would escape that contract. Every integer parse in the root blob
+    must be guarded.
+    """
+    path = _open_with_root_blob(
+        tmp_path,
+        b'<Root><Version>11000</Version><STVersion>700</STVersion>'
+        b'<UniqueID>FAKE-UUID</UniqueID>'
+        b'<RootPerson>NOT-AN-INT</RootPerson></Root>',
+    )
+    with pytest.raises(SchemaError) as exc:
+        open_database(path)
+    assert "RootPerson" in str(exc.value)
+
+
+def test_schema_error_on_non_integer_version(tmp_path):
+    """Same guard applies to <Version> — the sibling parse."""
+    path = _open_with_root_blob(
+        tmp_path,
+        b'<Root><Version>NOT-AN-INT</Version><STVersion>700</STVersion>'
+        b'<UniqueID>FAKE-UUID</UniqueID><RootPerson>1</RootPerson></Root>',
+    )
+    with pytest.raises(SchemaError) as exc:
+        open_database(path)
+    assert "version" in str(exc.value)
+
+
+def test_schema_error_on_missing_root_person_element(tmp_path):
+    """A root blob with no <RootPerson> at all is still SchemaError."""
+    path = _open_with_root_blob(
+        tmp_path,
+        b'<Root><Version>11000</Version><STVersion>700</STVersion>'
+        b'<UniqueID>FAKE-UUID</UniqueID></Root>',
+    )
+    with pytest.raises(SchemaError) as exc:
+        open_database(path)
+    assert "RootPerson" in str(exc.value)
 
 
 def test_find_by_surname_returns_seeded_records(fake_db):
