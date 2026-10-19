@@ -43,19 +43,14 @@ def to_json(
     ``source_path`` and ``db_version`` are stamped into the envelope so an
     output file is self-describing.
     """
-    if isinstance(persons, list):
-        results = persons
-        count = len(persons)
-    else:
-        results = list(persons)
-        count = len(results)
+    results = list(persons)
     return json.dumps(
         {
             "envelope": {
                 "tool": "rmread",
                 "source_database": source_path,
                 "db_version": db_version,
-                "count": count,
+                "count": len(results),
             },
             "results": [_person_to_dict(p) for p in results],
         },

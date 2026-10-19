@@ -74,7 +74,7 @@ def _build_parser() -> argparse.ArgumentParser:
     return p
 
 
-def _to_pattern(value: str, *, exact: bool, field: str) -> str:
+def _to_pattern(value: str, *, exact: bool) -> str:
     """Wrap ``value`` for SQL LIKE if not exact mode and no wildcards."""
     if exact:
         return value
@@ -86,9 +86,9 @@ def _to_pattern(value: str, *, exact: bool, field: str) -> str:
 def main(argv: list[str] | None = None) -> int:
     args = _build_parser().parse_args(argv)
 
-    surname_pat = _to_pattern(args.surname, exact=args.exact, field="surname")
+    surname_pat = _to_pattern(args.surname, exact=args.exact)
     given_pat = (
-        _to_pattern(args.given, exact=args.exact, field="given")
+        _to_pattern(args.given, exact=args.exact)
         if args.given else None
     )
 

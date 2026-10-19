@@ -307,6 +307,46 @@ def test_search_sql_template_exposes_one_where_slot():
     assert "{" not in _SURNAME_SEARCH_SQL.replace("{where}", "")
 
 
+def test_persondump_annotations_resolve_at_runtime():
+    """PersonDump's annotations must resolve, not just type-check.
+
+    The dataclass used to forward-reference Event/ParentRef/SpouseLink/
+    ChildRef with string literals while importing them lazily inside
+    dump_person. Static checkers were happy; anything that resolves
+    annotations at runtime — pydantic, typing.get_type_hints, some
+    doc generators — raised NameError.
+    """
+    import typing
+
+    from rmread.person import PersonDump
+
+    hints = typing.get_type_hints(PersonDump)
+    assert "Event" in str(hints["events"])
+    assert "ParentRef" in str(hints["parents"])
+    assert "SpouseLink" in str(hints["spouses"])
+    assert "ChildRef" in str(hints["children"])
+
+
+def test_person_module_imports_without_package_init():
+    """person.py must be importable on its own, not only via rmread.
+
+    Guards the module-level event/family imports against a future
+    circular import creeping in.
+    """
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    src = Path(__file__).resolve().parents[1] / "src"
+    r = subprocess.run(
+        [sys.executable, "-c", "import rmread.person; print('ok')"],
+        capture_output=True, text=True, cwd=str(src.parent),
+        env={"PYTHONPATH": str(src), "PATH": "/usr/bin:/bin"},
+    )
+    assert r.returncode == 0, f"import failed: {r.stderr}"
+    assert "ok" in r.stdout
+
+
 def test_find_person_each_clause_shape_executes(fake_db):
     """Every supported filter combination must build valid SQL.
 

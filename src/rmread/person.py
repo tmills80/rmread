@@ -10,6 +10,20 @@ from __future__ import annotations
 import sqlite3
 from dataclasses import dataclass, field
 
+# event.py and family.py do not import person, so there is no cycle —
+# these are ordinary module-level imports. PersonDump below
+# forward-references Event, which needs the name at class-creation
+# time; a lazy import inside dump_person() could not supply it.
+from .event import Event, load_events
+from .family import (
+    ChildRef,
+    ParentRef,
+    SpouseLink,
+    load_children,
+    load_parents,
+    load_spouses,
+)
+
 
 @dataclass(frozen=True)
 class Name:
@@ -239,10 +253,10 @@ class PersonDump:
     """Everything we know about a Person: identity + events + family links."""
 
     person: Person
-    events: tuple["Event", ...] = field(default_factory=tuple)
-    parents: tuple["ParentRef", ...] = field(default_factory=tuple)
-    spouses: tuple["SpouseLink", ...] = field(default_factory=tuple)
-    children: tuple["ChildRef", ...] = field(default_factory=tuple)
+    events: tuple[Event, ...] = field(default_factory=tuple)
+    parents: tuple[ParentRef, ...] = field(default_factory=tuple)
+    spouses: tuple[SpouseLink, ...] = field(default_factory=tuple)
+    children: tuple[ChildRef, ...] = field(default_factory=tuple)
 
 
 def get_person(
@@ -313,12 +327,8 @@ def dump_person(
     Returns None if no such PersonID exists. Either family or events can be
     suppressed via the corresponding flag — useful for narrow lookups.
     """
-    # Lazy imports to avoid an import cycle (event.py / family.py don't
-    # import person.py, but module-load order in editable installs can be
-    # subtle).
-    from .event import load_events
-    from .family import load_children, load_parents, load_spouses
-
+    # Imported at module level (see top of file): neither event.py nor
+    # family.py imports person, so there is no cycle to dodge.
     person = get_person(con, person_id)
     if person is None:
         return None
