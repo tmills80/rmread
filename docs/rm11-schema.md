@@ -222,9 +222,11 @@ multiple marriages mean `load_parents` can return more than two
 
 Indexes: `idxPlaceName`, `idxReversePlaceName`, `idxPlaceAbbrev`.
 
-`rmread.event._load_place_name` reads `PlaceTable.Name`. It does
-not follow `MasterID`; if a research workflow needs the
-master-canonical name, join through `MasterID` yourself.
+`rmread.event._load_place_names` reads `PlaceTable.Name` for the
+place ids a person's events actually reference (one batched query per
+`load_events` call). It does not follow `MasterID`; if a research
+workflow needs the master-canonical name, join through `MasterID`
+yourself.
 
 ### `FactTypeTable`
 
@@ -275,8 +277,10 @@ The full set of 72 fact types and their `OwnerType` is in
 #### Fallback for unknown IDs
 
 RM users add custom fact types without rows in `FactTypeTable`.
-`rmread.event._load_fact_type_name` returns `f"Unknown({event_type})"` rather than raising. Keep this in the rendering layer,
-not in the SQL filter, so SQL stays parameter-only.
+`rmread.event._fact_type_name` returns `f"Unknown({event_type})"` rather than raising. Keep this in the rendering layer,
+not in the SQL filter, so SQL stays parameter-only. The names are
+resolved against `_load_fact_type_names`' whole-table map — one query
+per `load_events` call, not one per event row.
 
 ### `RoleTable`
 

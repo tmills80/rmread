@@ -57,28 +57,44 @@ class Event:
     note: str
 
 
-def _load_fact_type_name(con: sqlite3.Connection, event_type: int) -> str:
-    """Look up an EventType int in the FactTypeTable. Falls back to
-    ``Unknown(<int>)`` if the type isn't registered — RM lets users add
-    custom fact types without a NameTable entry, so this should never
-    crash."""
-    row = con.execute(
-        "SELECT Name FROM FactTypeTable WHERE FactTypeID = ?",
-        (event_type,),
-    ).fetchone()
-    if row and row[0]:
-        return row[0]
-    return f"Unknown({event_type})"
+def _load_fact_type_names(con: sqlite3.Connection) -> dict[int, str]:
+    """Load the whole FactTypeTable as ``{EventType: name}``.
+
+    One query per ``load_events`` call rather than one per row. RM
+    ships roughly a hundred fact types, so the whole table is small
+    and cheaper to cache than to re-select per row.
+    """
+    rows = con.execute("SELECT FactTypeID, Name FROM FactTypeTable").fetchall()
+    return {r["FactTypeID"]: (r["Name"] or "") for r in rows}
 
 
-def _load_place_name(con: sqlite3.Connection, place_id: int | None) -> str:
-    if not place_id:
-        return ""
-    row = con.execute(
-        "SELECT Name FROM PlaceTable WHERE PlaceID = ?",
-        (place_id,),
-    ).fetchone()
-    return (row[0] if row and row[0] else "") or ""
+def _fact_type_name(event_type: int, names: dict[int, str]) -> str:
+    """Resolve one EventType against a preloaded name map.
+
+    Falls back to ``Unknown(<int>)`` when the type has no
+    FactTypeTable row — RM lets users add custom fact types, so this
+    must never crash. The fallback stays here, in the rendering
+    layer, so the SQL filter stays parameter-only.
+    """
+    return names.get(event_type) or f"Unknown({event_type})"
+
+
+def _load_place_names(
+    con: sqlite3.Connection, place_ids: set[int],
+) -> dict[int, str]:
+    """Load ``{PlaceID: Name}`` for the referenced ids, in one query.
+
+    Only the ids this person actually references are fetched;
+    PlaceTable can hold many thousands of rows on a large tree.
+    """
+    if not place_ids:
+        return {}
+    placeholders = ",".join("?" for _ in place_ids)
+    rows = con.execute(
+        f"SELECT PlaceID, Name FROM PlaceTable WHERE PlaceID IN ({placeholders})",
+        list(place_ids),
+    ).fetchall()
+    return {r["PlaceID"]: (r["Name"] or "") for r in rows}
 
 
 def load_events(
@@ -112,14 +128,18 @@ def load_events(
     ).fetchall()
 
     out: list[Event] = []
+    fact_names = _load_fact_type_names(con)
+    place_names = _load_place_names(
+        con, {r["PlaceID"] for r in rows if r["PlaceID"]},
+    )
     for r in rows:
         out.append(Event(
             event_id=r["EventID"],
             event_type=r["EventType"],
-            event_type_name=_load_fact_type_name(con, r["EventType"]),
+            event_type_name=_fact_type_name(r["EventType"], fact_names),
             date=r["Date"] or "",
             sort_date=r["SortDate"] or None,
-            place=_load_place_name(con, r["PlaceID"]),
+            place=place_names.get(r["PlaceID"], ""),
             is_primary=bool(r["IsPrimary"]),
             sentence=r["Sentence"] or "",
             details=r["Details"] or "",
