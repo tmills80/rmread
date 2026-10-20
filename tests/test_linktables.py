@@ -230,3 +230,73 @@ def test_walkers_never_write() -> None:
             )
     finally:
         db.close()
+
+
+# --- integer-keyed builders ----------------------------------------------
+
+
+def test_media_owner_map_keys_are_integers() -> None:
+    """``media_owner_map`` returns ``{(OwnerType, OwnerID): [...]}``.
+
+    Tests use the integer-keyed shape directly so callers like the
+    Gramps export don't have to translate owner-kind strings back
+    to integers.
+    """
+    from rmread.linktables import media_owner_map
+
+    db = open_database(SAMPLE_TREE)
+    try:
+        m = media_owner_map(db.con)
+    finally:
+        db.close()
+
+    assert m, "SampleTree should have MediaLinks"
+    for (ot, oid), mids in m.items():
+        assert isinstance(ot, int), f"OwnerType must be int, got {type(ot)}"
+        assert isinstance(oid, int)
+        assert all(isinstance(mid, int) for mid in mids)
+
+
+def test_media_owner_map_uses_global_enum() -> None:
+    """Every OwnerType key is one of the 0/2/3/4 enum values used by
+    MediaLinkTable in SampleTree. The walker rejects unknown
+    OwnerTypes with a warning, but those should not appear as keys.
+    """
+    from rmread.linktables import media_owner_map, OWNER_TYPE_TO_KEY
+
+    db = open_database(SAMPLE_TREE)
+    try:
+        m = media_owner_map(db.con)
+    finally:
+        db.close()
+
+    types = {ot for ot, _ in m}
+    assert types <= set(OWNER_TYPE_TO_KEY), (
+        f"media_owner_map produced keys outside the enum: {types}"
+    )
+
+
+def test_address_owner_map_is_source_keyed() -> None:
+    """``address_owner_map`` returns ``{OwnerID: [AddressID, ...]}``.
+
+    SampleTree's AddressLink has only OwnerType=3 (Source), so
+    every key should be a SourceID.
+    """
+    from rmread.linktables import address_owner_map
+
+    db = open_database(SAMPLE_TREE)
+    try:
+        con = db.con
+        m = address_owner_map(con)
+        source_ids = {r[0] for r in con.execute(
+            "SELECT SourceID FROM SourceTable"
+        )}
+    finally:
+        db.close()
+
+    assert m
+    assert set(m).issubset(source_ids), (
+        f"address_owner_map produced non-Source keys: "
+        f"{sorted(set(m) - source_ids)[:5]}"
+    )
+

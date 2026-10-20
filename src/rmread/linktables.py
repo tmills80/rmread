@@ -245,3 +245,70 @@ def walk_address_links(
             continue
         out.append((kind, r["OwnerID"], r["AddressID"]))
     return out
+
+
+def media_owner_map(
+    con: sqlite3.Connection,
+) -> dict[tuple[int, int], list[int]]:
+    """MediaLink rows as ``{(OwnerType, OwnerID): [MediaID, ...]}``.
+
+    Returned keys are integer OwnerTypes — the same shape the
+    callers using ``mediaref`` per-owner lookups already consume.
+    Rows whose OwnerType is outside the known enum are dropped
+    with a warning.
+
+    This is a separate walk from ``walk_media_links``: the walker
+    returns resolved owner-kind strings for callers that want
+    business-level filtering, this builder returns integer keys
+    for callers that map directly by OwnerType.
+    """
+    out: dict[tuple[int, int], list[int]] = {}
+    seen_unknown: set[int] = set()
+    skipped_count = 0
+    for r in con.execute(
+        "SELECT MediaID, OwnerType, OwnerID FROM MediaLinkTable"
+    ):
+        otype = r["OwnerType"]
+        if otype not in OWNER_TYPE_TO_KEY:
+            if otype not in seen_unknown:
+                _log.warning(
+                    "unknown media OwnerType=%d (%d rows skipped so far); "
+                    "see tools/rmread/docs/rm11-schema.md § "
+                    "'MultimediaTable + MediaLinkTable'",
+                    otype, skipped_count,
+                )
+                seen_unknown.add(otype)
+            skipped_count += 1
+            continue
+        out.setdefault((otype, r["OwnerID"]), []).append(r["MediaID"])
+    return out
+
+
+def address_owner_map(
+    con: sqlite3.Connection,
+) -> dict[int, list[int]]:
+    """AddressLink rows as ``{OwnerID: [AddressID, ...]}``.
+
+    Returns the raw integer mapping — caller picks the kind. OwnerTypes
+    outside the known enum are dropped with a warning.
+    """
+    out: dict[int, list[int]] = {}
+    seen_unknown: set[int] = set()
+    skipped_count = 0
+    for r in con.execute(
+        "SELECT AddressID, OwnerType, OwnerID FROM AddressLinkTable"
+    ):
+        otype = r["OwnerType"]
+        if otype not in OWNER_TYPE_TO_KEY:
+            if otype not in seen_unknown:
+                _log.warning(
+                    "unknown address OwnerType=%d (%d rows skipped so far); "
+                    "see tools/rmread/docs/rm11-schema.md § "
+                    "'AddressTable + AddressLinkTable'",
+                    otype, skipped_count,
+                )
+                seen_unknown.add(otype)
+            skipped_count += 1
+            continue
+        out.setdefault(r["OwnerID"], []).append(r["AddressID"])
+    return out
