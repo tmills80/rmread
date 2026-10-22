@@ -14,8 +14,7 @@ import json
 import sys
 
 from .. import dump_person, open_database
-from ..format import to_json
-from ..person import PersonDump
+from ..format import dump_payload
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -43,7 +42,7 @@ def _build_parser() -> argparse.ArgumentParser:
     return p
 
 
-def _dump_to_text(dump: PersonDump) -> str:
+def _dump_to_text(dump) -> str:
     p = dump.person
     lines: list[str] = []
     lines.append(f"Person {p.person_id} ({p.unique_id or 'no-uuid'})")
@@ -53,7 +52,7 @@ def _dump_to_text(dump: PersonDump) -> str:
     if p.primary_name.birth_year or p.primary_name.death_year:
         b = p.primary_name.birth_year or "?"
         d = p.primary_name.death_year or ""
-        lines.append(f"  Years:   {b} – {d}".rstrip(" –"))
+        lines.append(f"  Years:   {b} \u2013 {d}".rstrip(" \u2013"))
     if p.is_private:
         lines.append("  Privacy: marked private in source RM DB")
 
@@ -78,13 +77,17 @@ def _dump_to_text(dump: PersonDump) -> str:
         lines.append("")
         lines.append(f"Parents ({len(dump.parents)}):")
         for par in dump.parents:
-            lines.append(f"  {par.role:<7} @{par.parent_id}  {par.parent_name}")
+            lines.append(
+                f"  {par.role:<7} @{par.parent_id}  {par.parent_name}"
+            )
 
     if dump.spouses:
         lines.append("")
         lines.append(f"Spouses ({len(dump.spouses)}):")
         for sp in dump.spouses:
-            lines.append(f"  family {sp.family_id}  @{sp.spouse_id}  {sp.spouse_name}")
+            lines.append(
+                f"  family {sp.family_id}  @{sp.spouse_id}  {sp.spouse_name}"
+            )
 
     if dump.children:
         lines.append("")
@@ -97,76 +100,9 @@ def _dump_to_text(dump: PersonDump) -> str:
     return "\n".join(lines)
 
 
-def _dump_to_dict(dump: PersonDump) -> dict:
-    """Projection of PersonDump for JSON output."""
-    p = dump.person
-    return {
-        "person": {
-            "person_id": p.person_id,
-            "unique_id": p.unique_id,
-            "sex": p.sex,
-            "living": p.living,
-            "is_private": p.is_private,
-            "display_name": p.display_name,
-            "primary_name": {
-                "surname": p.primary_name.surname,
-                "given": p.primary_name.given,
-                "prefix": p.primary_name.prefix,
-                "suffix": p.primary_name.suffix,
-                "nickname": p.primary_name.nickname,
-                "birth_year": p.primary_name.birth_year,
-                "death_year": p.primary_name.death_year,
-                "sentence": p.primary_name.sentence,
-            },
-        },
-        "events": [
-            {
-                "event_id": ev.event_id,
-                "event_type": ev.event_type,
-                "event_type_name": ev.event_type_name,
-                "date": ev.date,
-                "sort_date": ev.sort_date,
-                "place": ev.place,
-                "is_primary": ev.is_primary,
-                "sentence": ev.sentence,
-                "details": ev.details,
-                "note": ev.note,
-            }
-            for ev in dump.events
-        ],
-        "parents": [
-            {
-                "family_id": par.family_id,
-                "parent_id": par.parent_id,
-                "parent_name": par.parent_name,
-                "role": par.role,
-            }
-            for par in dump.parents
-        ],
-        "spouses": [
-            {
-                "family_id": sp.family_id,
-                "spouse_id": sp.spouse_id,
-                "spouse_name": sp.spouse_name,
-                "role": sp.role,
-            }
-            for sp in dump.spouses
-        ],
-        "children": [
-            {
-                "child_id": ch.child_id,
-                "child_name": ch.child_name,
-                "rel_father": ch.rel_father,
-                "rel_mother": ch.rel_mother,
-                "child_order": ch.child_order,
-            }
-            for ch in dump.children
-        ],
-    }
-
-
 def main(argv: list[str] | None = None) -> int:
     args = _build_parser().parse_args(argv)
+
     if args.person_id < 0:
         print(f"error: person_id must be >= 0, got {args.person_id}",
               file=sys.stderr)
@@ -199,15 +135,16 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     if args.format == "json":
-        print(json.dumps({
-            "envelope": {
-                "tool": "rmread",
-                "source_database": str(args.database),
-                "db_version": db.version,
-                "person_id": args.person_id,
-            },
-            "result": _dump_to_dict(dump),
-        }, indent=2, ensure_ascii=False))
+        print(json.dumps(
+            dump_payload(
+                dump,
+                source_path=str(args.database),
+                db_version=db.version,
+                person_id=args.person_id,
+            ),
+            indent=2,
+            ensure_ascii=False,
+        ))
     else:
         sys.stderr.write(
             f"# source: {args.database}\n"
