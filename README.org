@@ -48,6 +48,15 @@ pip install -e tools/rmread[test]
 runtime dependencies. The extras group is named =test= to match the
 sibling tools =rmtree-fake= and =rmtree-anonymize=.)
 
+=rmread= is also the dependency of =rm2gramps= and of the
+=rmtree-fake= / =rmtree-anonymize= test suites. It is not published
+to PyPI, so those tools are installed through the workspace root,
+which resolves it from this repository:
+
+#+begin_src shell
+uv sync --all-packages --all-extras
+#+end_src
+
 * Quick start
 
 #+begin_src shell
@@ -96,6 +105,7 @@ the surname genuinely contains =%= or =_= as literal characters.
 {
   "envelope": {
     "tool": "rmread",
+    "schema_version": 1,
     "source_database": "Tree.rmtree",
     "db_version": 11000,
     "count": 1
@@ -116,6 +126,13 @@ the surname genuinely contains =%= or =_= as literal characters.
 The =source_database= and =db_version= stamps let a downstream tool
 verify provenance without trusting the caller.
 
+The =schema_version= stamp says which *shape* the payload under the
+envelope has. =rm-find= and =rm-dump= emit different shapes, so they
+carry different versions (=rmread.format.FIND_SCHEMA_VERSION= and
+=rmread.format.DUMP_SCHEMA_VERSION=, both currently 1). A consumer
+that does not recognise the version must refuse the payload rather
+than guess at it.
+
 ** rm-dump — full person record
 
 #+begin_src shell
@@ -129,6 +146,32 @@ Dumps everything rmread knows about a single =PersonID=: identity,
 recorded life events (birth / death / burial / christening /
 baptism / cremation / occupation / census / probate / will /
 residence by default), parents, spouses, children.
+
+=--format json= emits the same envelope, stamped with
+=rmread.format.DUMP_SCHEMA_VERSION=:
+
+#+begin_src json
+{
+  "envelope": {
+    "tool": "rmread",
+    "schema_version": 1,
+    "source_database": "Tree.rmtree",
+    "db_version": 11000,
+    "person_id": 7
+  },
+  "result": {
+    "person": { "...": "..." },
+    "events": [ { "...": "..." } ],
+    "parents": [ { "...": "..." } ],
+    "spouses": [ { "...": "..." } ],
+    "children": [ { "...": "..." } ]
+  }
+}
+#+end_src
+
+=rmcite= consumes this shape. The contract is guarded by
+=tools/cite/tests/test_contract.py= — see
+=../cite/plans/rm-dump-json-contract.md=.
 
 *Exit codes*
 

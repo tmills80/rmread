@@ -7,12 +7,24 @@ from pathlib import Path
 
 import pytest
 from rmread.db import SchemaError, open_database
+from ._fixture import sample_tree_path
 
 
 # Path to the dev SampleTree.rmtree that ships at the repo root.
-SAMPLE_TREE = Path("/home/tristan/genealogy_tools/SampleTree.rmtree")
+SAMPLE_TREE = sample_tree_path()
 
 
+
+#: Skip a test that needs the sample database when it is absent.
+requires_sample_tree = pytest.mark.skipif(
+    SAMPLE_TREE is None,
+    reason=(
+        "the RootsMagic sample database is not available; set RM_SAMPLE_TREE "
+        "to its path to run this test"
+    ),
+)
+
+@requires_sample_tree
 def test_rmnocase_registered() -> None:
     """A query against a RMNOCASE-collated column must not raise.
 
@@ -32,6 +44,7 @@ def test_rmnocase_registered() -> None:
         db.close()
 
 
+@requires_sample_tree
 def test_open_real_rmtree_succeeds() -> None:
     db = open_database(SAMPLE_TREE)
     db.close()
@@ -48,6 +61,7 @@ def test_open_rejects_non_rmtree(tmp_path: Path) -> None:
         open_database(bogus)
 
 
+@requires_sample_tree
 def test_query_only_enforced() -> None:
     """Even with query_only on, a write must raise."""
     db = open_database(SAMPLE_TREE)

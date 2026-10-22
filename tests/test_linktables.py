@@ -20,8 +20,9 @@ from pathlib import Path
 import pytest
 
 from rmread import open_database
+from ._fixture import sample_tree_path
 
-SAMPLE_TREE = Path("/home/tristan/genealogy_tools/SampleTree.rmtree")
+SAMPLE_TREE = sample_tree_path()
 
 CITE_TABLE = "CitationLinkTable"
 MEDIA_TABLE = "MediaLinkTable"
@@ -39,6 +40,17 @@ def _bucket_ids(con, table: str, owner_type: int) -> set[int]:
 
 # --- exports -------------------------------------------------------------
 
+
+
+#: Skip every test in this module when the sample database is absent.
+#: A fresh clone without `SampleTree.rmtree` is a normal state.
+pytestmark = pytest.mark.skipif(
+    SAMPLE_TREE is None,
+    reason=(
+        "the RootsMagic sample database is not available; set RM_SAMPLE_TREE "
+        "to its path to run these tests"
+    ),
+)
 
 def test_module_exposes_walkers() -> None:
     """All three walkers and the enum are importable from rmread."""

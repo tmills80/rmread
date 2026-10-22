@@ -80,7 +80,7 @@ lookup table is required — RM users add custom fact types.
 * Tests
 
 #+begin_src shell
-pytest tools/rmread/tests/                   # all 47 tests
+pytest tools/rmread/tests/                   # all 111 tests
 pytest -v tools/rmread/tests/                # one line per test
 pytest tools/rmread/tests/test_family.py    # one module
 #+end_src
@@ -159,7 +159,9 @@ necessary:
       install.
 
 Until that work happens: =pip install -e tools/rmread[test]= from
-the repo root is the install path.
+the repo root is the install path. For the whole workspace — which is
+what resolves =rmread= for the sibling tools that depend on it — use
+=uv sync --all-packages --all-extras= from the repo root.
 
 * Cross-references
 
