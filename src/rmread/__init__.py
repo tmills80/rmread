@@ -20,6 +20,14 @@ from .person import (
     get_person,
     load_alt_names,
 )
+from .rmtext import (
+    Chunk,
+    PlainText,
+    Span,
+    normalize_newlines,
+    plain_text,
+    tokenize,
+)
 
 __all__ = [
     # core
@@ -46,4 +54,11 @@ __all__ = [
     "load_children",
     "load_parents",
     "load_spouses",
+    # markup dialect
+    "Chunk",
+    "PlainText",
+    "Span",
+    "normalize_newlines",
+    "plain_text",
+    "tokenize",
 ]
