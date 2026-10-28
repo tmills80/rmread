@@ -37,7 +37,7 @@ practice, see =AGENTS.md= and =references/evidence-discipline.md=.
 * Install
 
 #+begin_src shell
-git clone <this-repo>
+git clone https://github.com/tmills80/rmread.git
 cd rmread
 python -m venv .venv
 source .venv/bin/activate
@@ -47,9 +47,9 @@ pip install -e ".[test]"
 (=test= pulls in =pytest=. The library itself has no third-party
 runtime dependencies.)
 
-=rmread= is also the dependency of =rm2gramps=, which lives in a
-sibling repository. =rmread= is not published to PyPI, so =rm2gramps=
-resolves it from a checkout next door:
+=rmread= is not published to PyPI yet. It is the dependency of
+=rm2gramps=, which lives in a sibling repository and resolves it from
+a checkout next door:
 
 #+begin_src shell
 uv sync --all-extras
@@ -168,8 +168,9 @@ residence by default), parents, spouses, children.
 #+end_src
 
 =rmcite= consumes this shape. The contract is guarded by
-the rmcite package's =tests/test_contract.py= — see
-=../cite/plans/rm-dump-json-contract.md=.
+the rmcite package's =tests/test_contract.py=, which asserts that
+rmcite's pinned =SUPPORTED_SCHEMA_VERSION= still equals
+=rmread.format.DUMP_SCHEMA_VERSION=.
 
 *Exit codes*
 
