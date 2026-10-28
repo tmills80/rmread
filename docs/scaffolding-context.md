@@ -89,7 +89,7 @@ between RM docs and the real database.
 
 ## Parents vs co-parents
 
-`load_parents(pid)` in `tools/rmread/src/rmread/family.py` returns the
+`load_parents(pid)` in `src/rmread/family.py` returns the
 person's *parents*, not the partners-in-couple-of. The wrong
 implementation (which we shipped and caught in tests) was
 `FamilyTable WHERE FatherID = ? OR MotherID = ?` — this returns the
@@ -104,7 +104,7 @@ disambiguate using the `family_id`.
 
 ## Fact-type IDs in `event.py::DEFAULT_EVENT_TYPES`
 
-The default event-type tuple in `tools/rmread/src/rmread/event.py`
+The default event-type tuple in `src/rmread/event.py`
 must be the **integer IDs RM 11 actually uses**, not the numbers
 the inline comments claim. The schema reference doc lists the
 verified IDs and the wrong/right pairs. When editing the tuple,

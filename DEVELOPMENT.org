@@ -8,11 +8,15 @@ Maintainer notes for rmread. Read =README.org= first if you want to
 * Layout
 
 #+begin_example
-tools/rmread/
+
 ├── pyproject.toml                       package metadata, CLI entry points
 ├── README.org                           user-facing notes (install, CLI)
 ├── DEVELOPMENT.org                      this file
+├── AGENTS.md                            house style
+├── references/
+│   └── evidence-discipline.md           sourcing rules
 ├── docs/
+│   ├── rm11-schema.md                   the RM 11 schema reference
 │   └── scaffolding-context.md           project-local guidance
 ├── src/rmread/
 │   ├── __init__.py                      re-exports the public surface
@@ -20,6 +24,8 @@ tools/rmread/
 │   ├── person.py                        Person, find_by_surname, dump_person
 │   ├── event.py                         load_events, Event, FactTypeTable lookup
 │   ├── family.py                        load_parents / spouses / children
+│   ├── linktables.py                    the *LinkTable walkers
+│   ├── rmtext.py                        the RootsMagic markup dialect
 │   ├── format.py                        text + JSON renderers
 │   └── cli/
 │       ├── find.py                      rm-find
@@ -27,11 +33,18 @@ tools/rmread/
 └── tests/
     ├── __init__.py                      package marker
     ├── _schema.py                       shared synthetic-RM schema builder
+    ├── _fixture.py                       locates SampleTree.rmtree
     ├── test_db.py                       DB opens / closes / rejects garbage
+    ├── test_db_rmnocase.py              the RMNOCASE collation
     ├── test_format.py                   text + JSON rendering
     ├── test_event.py                    event loading + Unknown(<int>) fallback
+    ├── test_event_default_ids.py        pins the default fact-type IDs
     ├── test_family.py                   parents / spouses / children links
-    └── test_dump.py                     PersonDump composition
+    ├── test_linktables.py               the link-table walkers
+    ├── test_rmtext.py                   the markup dialect
+    ├── test_find.py                     rm-find CLI
+    ├── test_dump.py                     PersonDump composition
+    └── test_packaging.py                manifest / licence guards
 #+end_example
 
 * Module responsibilities
@@ -80,9 +93,9 @@ lookup table is required — RM users add custom fact types.
 * Tests
 
 #+begin_src shell
-pytest tools/rmread/tests/                   # all 111 tests
-pytest -v tools/rmread/tests/                # one line per test
-pytest tools/rmread/tests/test_family.py    # one module
+pytest tests/                   # all 127 tests
+pytest -v tests/                # one line per test
+pytest tests/test_family.py    # one module
 #+end_src
 
 The shared fixture =tests/_schema.py= builds a synthetic in-memory
@@ -124,7 +137,7 @@ Real DBs at the repo root are gitignored (=*.rmtree=, =*.rmgc=).
 2. From =src/rmread/cli/= import =main= and re-export it (the
    =__init__.py= there).
 3. Add a =[project.scripts]= entry to =pyproject.toml=. After
-   re-installing (=pip install -e tools/rmread=), the command
+   re-installing (=pip install -e .=), the command
    becomes callable.
 4. Smoke test on a real =.rmtree= file (remember to ignore it).
 
@@ -158,15 +171,16 @@ necessary:
 - [ ] Verify =pip install path/to/whl= works without an editable
       install.
 
-Until that work happens: =pip install -e tools/rmread[test]= from
-the repo root is the install path. For the whole workspace — which is
-what resolves =rmread= for the sibling tools that depend on it — use
-=uv sync --all-packages --all-extras= from the repo root.
+Until that work happens: =pip install -e ".[test]"= from the repo root
+is the install path. For =uv=, =uv sync --all-extras= from the repo
+root is the equivalent. The sibling =rm2gramps= repository resolves
+=rmread= from a checkout next door via =[tool.uv.sources]=, because
+=rmread= is not on PyPI.
 
 * Cross-references
 
 - =README.org= — user-facing notes.
 - =docs/scaffolding-context.md= — project-local guidance.
-- =../../AGENTS.md= — repo-wide house style.
-- =../../references/evidence-discipline.md= — sourcing rules.
+- =AGENTS.md= — repo-wide house style.
+- =references/evidence-discipline.md= — sourcing rules.
 - =scaffolding-codebases= (skill) — general scaffolding guidance.

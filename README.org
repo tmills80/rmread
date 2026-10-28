@@ -22,7 +22,7 @@ argparse.
   "person @pid7 was born in FFakePlace-1".
 
 For the project's sourcing rules and what "evidence-grade" means in
-practice, see =../../AGENTS.md= and =../../references/evidence-discipline.md=.
+practice, see =AGENTS.md= and =references/evidence-discipline.md=.
 
 * What it is not
 
@@ -38,23 +38,21 @@ practice, see =../../AGENTS.md= and =../../references/evidence-discipline.md=.
 
 #+begin_src shell
 git clone <this-repo>
-cd genealogy_tools
+cd rmread
 python -m venv .venv
 source .venv/bin/activate
-pip install -e tools/rmread[test]
+pip install -e ".[test]"
 #+end_src
 
 (=test= pulls in =pytest=. The library itself has no third-party
-runtime dependencies. The extras group is named =test= to match the
-sibling tools =rmtree-fake= and =rmtree-anonymize=.)
+runtime dependencies.)
 
-=rmread= is also the dependency of =rm2gramps= and of the
-=rmtree-fake= / =rmtree-anonymize= test suites. It is not published
-to PyPI, so those tools are installed through the workspace root,
-which resolves it from this repository:
+=rmread= is also the dependency of =rm2gramps=, which lives in a
+sibling repository. =rmread= is not published to PyPI, so =rm2gramps=
+resolves it from a checkout next door:
 
 #+begin_src shell
-uv sync --all-packages --all-extras
+uv sync --all-extras
 #+end_src
 
 * Quick start
@@ -170,7 +168,7 @@ residence by default), parents, spouses, children.
 #+end_src
 
 =rmcite= consumes this shape. The contract is guarded by
-=tools/cite/tests/test_contract.py= — see
+the rmcite package's =tests/test_contract.py= — see
 =../cite/plans/rm-dump-json-contract.md=.
 
 *Exit codes*
@@ -223,7 +221,7 @@ be keys.
   preserve that.
 - *Cross-vault matches are not kinship.* Like any RootsMagic query,
   same-surname hits in different researcher vaults ≠ same family.
-  See =../../references/evidence-discipline.md= §3.
+  See =references/evidence-discipline.md= §3.
 
 * See also
 
@@ -233,9 +231,8 @@ be keys.
   conventions, and the bug list verified against =SampleTree.rmtree=.
 - =docs/scaffolding-context.md= — project-local guidance
   (synthetic-data rules, parents-vs-co-parents, read-only safeguards).
-- =../../references/evidence-discipline.md= — sourcing rules shared
-  across the genealogy_tools repo.
+- =references/evidence-discipline.md= — the sourcing rules.
 
 * Licence
 
-Same as the parent repository.
+MIT. See =LICENSE=.

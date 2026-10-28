@@ -128,7 +128,7 @@ class RMDatabase:
         # collation that Python's sqlite3 doesn't ship. Without this
         # registration, even read-only queries against those tables
         # raise ``no such collation sequence: RMNOCASE``. See
-        # ``tools/rmread/docs/rm11-schema.md`` § "The ``RMNOCASE``
+        # ``docs/rm11-schema.md`` § "The ``RMNOCASE``
         # collation" for the original bug report.
         self._con.create_collation("RMNOCASE", _rmnocase)
         # Defensive: refuse to run any write even if mode=ro is dropped.

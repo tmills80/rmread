@@ -1,0 +1,19 @@
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.venv/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+
+# RootsMagic databases never go in git.
+*.rmtree
+*.rmgc
+
+# Emacs org / markdown HTML exports — keep source, ignore render.
+*.html
+
+# Build artefacts
+build/
+dist/

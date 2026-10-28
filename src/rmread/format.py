@@ -14,7 +14,7 @@ payload rather than guess at it: a note that silently drops half a
 payload is worse than no note.
 
 ``rmcite`` consumes the ``rm-dump`` shape and pins
-``DUMP_SCHEMA_VERSION``; see ``tools/cite/src/rmcite/contract.py``.
+``DUMP_SCHEMA_VERSION``; see the rmcite package's ``contract.py``.
 """
 
 from __future__ import annotations

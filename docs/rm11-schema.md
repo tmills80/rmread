@@ -751,7 +751,7 @@ rather than through `rmread.db.RMDatabase`.
 Things the SampleTree.rmtree inspection caught:
 
 1. **`rmread.event.DEFAULT_EVENT_TYPES` uses the wrong IDs.**
-   `tools/rmread/src/rmread/event.py` ships:
+   `src/rmread/event.py` ships:
    ```python
    DEFAULT_EVENT_TYPES = (
        1,    # Birth         ← ok

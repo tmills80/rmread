@@ -33,7 +33,7 @@ def test_rmnocase_registered() -> None:
     ``OperationalError: no such collation sequence: RMNOCASE``.
 
     Captured against ``SampleTree.rmtree`` (RM 11.0); see
-    ``tools/rmread/docs/rm11-schema.md`` § "Verified-in-this-DB
+    ``docs/rm11-schema.md`` § "Verified-in-this-DB
     caveats" item 3 for the original bug report.
     """
     db = open_database(SAMPLE_TREE)

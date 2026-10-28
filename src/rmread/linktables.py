@@ -131,7 +131,7 @@ def walk_citation_links(
             if otype not in seen_unknown:
                 _log.warning(
                     "unknown citation OwnerType=%d (%d rows skipped so far); "
-                    "see tools/rmread/docs/rm11-schema.md § 'CitationLinkTable'",
+                    "see docs/rm11-schema.md § 'CitationLinkTable'",
                     otype, skipped_count,
                 )
                 seen_unknown.add(otype)
@@ -194,7 +194,7 @@ def walk_media_links(
             if otype not in seen_unknown:
                 _log.warning(
                     "unknown media OwnerType=%d (%d rows skipped so far); "
-                    "see tools/rmread/docs/rm11-schema.md § "
+                    "see docs/rm11-schema.md § "
                     "'MultimediaTable + MediaLinkTable'",
                     otype, skipped_count,
                 )
@@ -236,7 +236,7 @@ def walk_address_links(
             if otype not in seen_unknown:
                 _log.warning(
                     "unknown address OwnerType=%d (%d rows skipped so far); "
-                    "see tools/rmread/docs/rm11-schema.md § "
+                    "see docs/rm11-schema.md § "
                     "'AddressTable + AddressLinkTable'",
                     otype, skipped_count,
                 )
@@ -273,7 +273,7 @@ def media_owner_map(
             if otype not in seen_unknown:
                 _log.warning(
                     "unknown media OwnerType=%d (%d rows skipped so far); "
-                    "see tools/rmread/docs/rm11-schema.md § "
+                    "see docs/rm11-schema.md § "
                     "'MultimediaTable + MediaLinkTable'",
                     otype, skipped_count,
                 )
@@ -303,7 +303,7 @@ def address_owner_map(
             if otype not in seen_unknown:
                 _log.warning(
                     "unknown address OwnerType=%d (%d rows skipped so far); "
-                    "see tools/rmread/docs/rm11-schema.md § "
+                    "see docs/rm11-schema.md § "
                     "'AddressTable + AddressLinkTable'",
                     otype, skipped_count,
                 )
