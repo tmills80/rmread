@@ -117,9 +117,54 @@ def test_citation_link_event_bucket_is_not_empty() -> None:
     )
 
 
-def test_citation_link_walker_respects_family_subset() -> None:
+def test_citation_link_person_level_owner_types_are_walked() -> None:
+    """Owner types 7 and 19 are person-level citations, not unknowns.
+
+    RM 11 records a citation against a person twice: on the fact
+    (owner type 0) and on the person itself (owner types 7 and 19).
+    Dropping 7 and 19 lost 33 attributions, and 4 citations in
+    SampleTree were reachable *only* through them.
+
+    The count is checked against the raw link table so the test
+    cannot pass by accident if the walker starts dropping them again.
+    """
     from rmread.linktables import walk_citation_links
 
+    db = open_database(SAMPLE_TREE)
+    try:
+        con = db.con
+        result = walk_citation_links(con)
+        raw = {
+            int(r[0]): int(r[1])
+            for r in con.execute(
+                "SELECT OwnerType, COUNT(*) FROM CitationLinkTable "
+                "WHERE OwnerType IN (7, 19) GROUP BY OwnerType"
+            )
+        }
+        person_level_ids = {
+            int(r[0])
+            for r in con.execute(
+                "SELECT DISTINCT OwnerID FROM CitationLinkTable "
+                "WHERE OwnerType IN (7, 19)"
+            )
+        }
+    finally:
+        db.close()
+
+    assert raw == {7: 24, 19: 9}, (
+        f"unexpected person-level owner type counts: {raw}"
+    )
+
+    # Every person-level owner id must be in the Person bucket.
+    missing = person_level_ids - set(result["Person"])
+    assert not missing, (
+        f"{len(missing)} person-level citation owners are missing from "
+        f"the Person bucket: {sorted(missing)[:5]}"
+    )
+
+
+def test_citation_link_walker_respects_family_subset() -> None:
+    from rmread.linktables import walk_citation_links
     db = open_database(SAMPLE_TREE)
     try:
         con = db.con

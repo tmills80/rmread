@@ -318,11 +318,15 @@ Index: `idxTagType`.
 These all share a **link-table polymorphism** pattern: a primary
 record table holds the actual entity, and a `*LinkTable`
 associates it with the right owner through an `(OwnerType,
-OwnerID)` pair. The integer values for `OwnerType` are **not
-consistent across link tables** — they share an enum convention
-with `EventTable.OwnerType` (0=Person, 1=Family, 2=Source) but
-extend it. `SampleTree.rmtree` distributions are listed under
-each table below.
+OwnerID)` pair. The integer values for `OwnerType` follow **one
+global enum** — `0=Person, 1=Family, 2=Event, 3=Source,
+4=Citation` — *not* the `EventTable.OwnerType` enum
+(`0=Person, 1=Family, 2=Source`), which is a different thing.
+`SampleTree.rmtree` distributions are listed under each table
+below.
+
+`CitationLinkTable` also uses two owner types **outside** the
+global enum — see the `CitationLinkTable` section below.
 
 ### `CitationTable` + `CitationLinkTable`
 
@@ -363,9 +367,41 @@ Indexes: `idxCitationName`, `idxCitationSourceID`.
 Index: `idxCitationLinkOwnerID`.
 
 `SampleTree.rmtree` distribution: `OwnerType=0` (Person) 17,
-`1` (Family) 48, `2` (Source) 604, `7` 24, `19` 9. The 7 and 19
-buckets appear to be RM-internal extensions; verify against
-your own DB before hard-coding.
+`1` (Family) 48, `2` (**Event**) 604, `7` 24, `19` 9.
+
+> The `2 (Event)` reading is the verified one, not `2 (Source)`.
+> Decisive evidence: the `OwnerType=2` bucket holds **488 distinct
+> OwnerIDs**, and only `EventTable` (870 rows) is large enough to
+> contain them — `PersonTable` (429), `CitationTable` (438),
+> `SourceTable` (204) and `PlaceTable` (545) are all too small, and
+> `FamilyTable` (142) is smaller still. This assumes referential
+> integrity on `OwnerID`, which the schema otherwise does.
+
+**Owner types 7 and 19 are person-level citations.** RM 11 records
+a citation against a person twice over: once on the *fact* (a birth
+or a census — owner type `2`, the event) and once on the *person*
+itself, and the person-level link uses owner type `0`… except in
+these two buckets, which sit outside the global enum.
+
+Verified against `SampleTree.rmtree` (33 rows):
+
+| OwnerType | rows | distinct owners | reading |
+|---|---|---|---|
+| 7  | 24 | 18 | a person |
+| 19 |  9 |  6 | a person |
+
+Every owner id resolves to a person, and in **20 of the 24**
+type-7 rows the citation's source is *also* cited by that same
+person's own facts — the signature of a citation copied up from a
+fact to the person. The type-19 rows are census sources attached to
+people whose own census facts cite other households; RM's precise
+label for the difference between 7 and 19 is not recoverable from
+the file alone.
+
+`rmread.linktables.CITATION_PERSON_OWNER_TYPES` folds both into the
+`Person` bucket. Dropping them instead cost 33 attributions, and 4
+citations in SampleTree (`4`, `11`, `281`, `469`) were reachable
+*only* through them — they had no owner at all.
 
 ### `SourceTable`
 
@@ -732,10 +768,15 @@ Re-register the collation before querying, e.g.:
 ```python
 import sqlite3, unicodedata
 
-def rmnocase(s, _name=None):
-    if s is None: return None
-    nfkd = unicodedata.normalize("NFKD", str(s))
+def _fold(value):
+    nfkd = unicodedata.normalize("NFKD", str(value))
     return "".join(c for c in nfkd if not unicodedata.combining(c)).casefold()
+
+def rmnocase(left, right):
+    # SQLite passes the TWO values being compared and expects a
+    # negative / zero / positive integer back.
+    a, b = _fold(left), _fold(right)
+    return (a > b) - (a < b)
 
 con = sqlite3.connect("file:Tree.rmtree?mode=ro", uri=True)
 con.create_collation("RMNOCASE", rmnocase)
@@ -745,6 +786,38 @@ con.execute("PRAGMA query_only = ON")
 Without that, **even read-only queries fail** — a real
 showstopper for any future code path that opens via raw sqlite3
 rather than through `rmread.db.RMDatabase`.
+
+### The callback must return an integer
+
+The shape of the callback is the whole trap. Python's `sqlite3`
+calls the collation factory with **the two values being compared**
+and coerces the result to an integer. Returning the folded *string*
+— the obvious first implementation, and the one this repository
+shipped until v0.0.2 — does not raise; it makes **every comparison
+compare equal**:
+
+```python
+# WRONG — silent wrong answers, no error
+def rmnocase(left, _name=None):
+    return _fold(left)
+
+con.execute("SELECT COUNT(*) FROM AddressTable WHERE Name = ?", (name,))
+# → every row, whatever `name` is
+con.execute("SELECT COUNT(DISTINCT Name) FROM AddressTable")
+# → 1
+```
+
+`ORDER BY` on an RMNOCASE column degenerates the same way (the
+sort key is the same for every row).
+
+`rmread` now returns a proper three-way comparison, and
+`tests/test_db_rmnocase.py` pins the behaviour: one name matches one
+row, and no two distinct names collapse.
+
+**Prefer an explicit collation in queries** where the intent is
+plain ASCII case-insensitivity — `WHERE Surname LIKE ? COLLATE NOCASE`
+is what `rmread.person.find_person` uses, and it does not depend on
+the registered collation at all.
 
 ## Verified-in-this-DB caveats
 

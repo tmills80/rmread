@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sqlite3
+import unicodedata
 from pathlib import Path
 
 import pytest
@@ -48,6 +49,76 @@ def test_rmnocase_registered() -> None:
 def test_open_real_rmtree_succeeds() -> None:
     db = open_database(SAMPLE_TREE)
     db.close()
+
+
+@requires_sample_tree
+def test_rmnocase_compares_correctly() -> None:
+    """A name filter must match one name, not the whole table.
+
+    The pre-fix collation returned the folded *string* rather than an
+    integer, so SQLite compared every pair as equal: ``WHERE Name = ?``
+    matched every row and ``COUNT(DISTINCT Name)`` returned 1. Both
+    are silent wrong answers.
+    """
+    db = open_database(SAMPLE_TREE)
+    try:
+        one = db.con.execute(
+            "SELECT Name FROM AddressTable WHERE Name IS NOT NULL LIMIT 1"
+        ).fetchone()
+        assert one is not None
+        name = one[0]
+
+        matched = db.con.execute(
+            "SELECT COUNT(*) FROM AddressTable WHERE Name = ?", (name,)
+        ).fetchone()[0]
+        assert matched == 1, (
+            f"{matched} addresses match the name {name!r} — the collation "
+            f"is comparing everything as equal"
+        )
+
+        distinct = db.con.execute(
+            "SELECT COUNT(DISTINCT Name) FROM AddressTable"
+        ).fetchone()[0]
+        total = db.con.execute(
+            "SELECT COUNT(*) FROM AddressTable WHERE Name IS NOT NULL"
+        ).fetchone()[0]
+        assert distinct == total, (
+            f"{total} address names collapse to {distinct} distinct values "
+            f"under the collation"
+        )
+    finally:
+        db.close()
+
+
+@requires_sample_tree
+def test_rmnocase_ignores_case_and_diacritics() -> None:
+    """RM's collation folds case and strips diacritics."""
+    db = open_database(SAMPLE_TREE)
+    try:
+        rows = db.con.execute(
+            "SELECT CitationName FROM CitationTable "
+            "WHERE CitationName IS NOT NULL"
+        ).fetchall()
+        named = [r[0] for r in rows if any(c.isalpha() for c in (r[0] or ""))]
+        if not named:
+            pytest.skip("no citation names with letters in this database")
+        name = named[0]
+        # Fold the way RM's collation folds: case-fold + strip
+        # diacritics. Whitespace is *not* stripped.
+        nfkd = unicodedata.normalize("NFKD", name)
+        folded = "".join(
+            c for c in nfkd if not unicodedata.combining(c)
+        ).casefold()
+
+        matched = db.con.execute(
+            "SELECT COUNT(*) FROM CitationTable WHERE CitationName = ?",
+            (folded.upper(),),
+        ).fetchone()[0]
+        assert matched >= 1, (
+            f"case-folded name {folded!r} did not match {name!r}"
+        )
+    finally:
+        db.close()
 
 
 def test_open_rejects_non_rmtree(tmp_path: Path) -> None:

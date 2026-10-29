@@ -17,17 +17,28 @@ class SchemaError(Exception):
     """Raised when the database does not look like a RootsMagic file."""
 
 
-def _rmnocase(value, _name=None):
-    """RMNOCASE collation function: case-fold + Unicode-diacritic-strip.
-
-    SQLite passes the column value as ``value`` and the collation name
-    as ``_name``; the latter is ignored (Python's sqlite3 expects the
-    callback shape ``(str, str) -> int``).
-    """
-    if value is None:
-        return None
+def _fold(value: str) -> str:
+    """Case-fold + strip Unicode diacritics — RM's RMNOCASE rule."""
     nfkd = unicodedata.normalize("NFKD", str(value))
     return "".join(c for c in nfkd if not unicodedata.combining(c)).casefold()
+
+
+def _rmnocase(left: str, right: str) -> int:
+    """RMNOCASE collation: case-fold + diacritic-strip, then compare.
+
+    SQLite calls the callback with the **two values being compared**
+    and expects a negative / zero / positive integer back.
+
+    Returning the folded *string* instead (which this function did
+    until v0.0.2) makes every comparison compare equal: SQLite coerces
+    the non-integer result, so ``WHERE Surname = 'x'`` matches every
+    row in the table and ``COUNT(DISTINCT surname)`` returns 1. That
+    is a silent wrong answer, not an error — the failure mode this
+    project cares about most.
+    """
+    a = _fold(left)
+    b = _fold(right)
+    return (a > b) - (a < b)
 
 
 @dataclass(frozen=True)

@@ -24,9 +24,11 @@ AddressLinkTable has only OwnerType=3 (Source) in SampleTree; its
 CitationTable overlap by ID coincidence. Single-source confirmation
 only — Plowman has zero AddressLink rows.
 
-OwnerTypes 7 and 19 appear in CitationLinkTable but are outside
-the 0–4 enum; they are dropped with a single warning per distinct
-unknown OwnerType.
+OwnerTypes 7 and 19 appear in CitationLinkTable, outside the 0–4
+enum. Both point at **people** — they are RM's person-level citations
+(the person's own Sources tab), as opposed to owner type 0's
+fact-level person citation. They are folded into the ``Person``
+bucket; see ``CITATION_PERSON_OWNER_TYPES`` for the evidence.
 """
 
 from __future__ import annotations
@@ -47,6 +49,36 @@ OWNER_TYPE_TO_KEY: dict[int, str] = {
     3: "Source",
     4: "Citation",
 }
+
+#: Owner types that ``CitationLinkTable`` uses for a citation attached
+#: at the **person** level, outside the 0–4 global enum.
+#:
+#: RM 11 stores two kinds of citation against a person: one on the
+#: person as a whole (the Sources tab / the name) and one on each of
+#: the person's facts. Both land in ``CitationLinkTable``, but only
+#: the fact-level one uses the global enum's ``0`` (Person).
+#:
+#: Verified against ``SampleTree.rmtree`` (RM 11.0) — 33 rows:
+#:
+#: | OwnerType | rows | distinct owners |
+#: |---|---|---|
+#: | 7  | 24 | 18 |
+#: | 19 |  9 |  6 |
+#:
+#: Every one of those 24 / 9 owner ids resolves to a person, and in
+#: 20 of the 24 type-7 rows the citation's source is *also* cited by
+#: that same person's own facts — the signature of a citation copied
+#: up from a fact to the person.
+#:
+#: They are folded into the ``Person`` bucket rather than dropped:
+#: dropping them lost 33 citations' worth of attribution, and 4
+#: citations in SampleTree were reachable *only* through them (they
+#: had no owner at all in the export).
+#:
+#: Scoped to the citation table on purpose. The media and address
+#: link tables in SampleTree use only owner types 0–4, and this says
+#: nothing about how RM uses 7 / 19 there.
+CITATION_PERSON_OWNER_TYPES: frozenset[int] = frozenset({7, 19})
 
 
 class CitationLinks(TypedDict):
@@ -85,9 +117,13 @@ def walk_citation_links(
 ) -> CitationLinks:
     """Walk CitationLinkTable and return ``{OwnerType: {OwnerID: (CitationID, ...)}}``.
 
-    Unknown OwnerType values (7 and 19 in SampleTree) are warned
-    once per distinct value and dropped. Buckets beyond the global
-    enum (0–4) are skipped without crashing.
+    Unknown OwnerType values are warned once per distinct value and
+    dropped. Buckets beyond the global enum (0–4) are skipped without
+    crashing.
+
+    Two owner types outside the global enum are known and are folded
+    into the ``Person`` bucket — see
+    :data:`CITATION_PERSON_OWNER_TYPES`.
 
     Parameters
     ----------
@@ -127,6 +163,8 @@ def walk_citation_links(
     for r in rows:
         otype = r["OwnerType"]
         kind = OWNER_TYPE_TO_KEY.get(otype)
+        if kind is None and otype in CITATION_PERSON_OWNER_TYPES:
+            kind = "Person"
         if kind is None:
             if otype not in seen_unknown:
                 _log.warning(
